@@ -31,6 +31,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:betto_onnxrt/betto_onnxrt.dart';
+import 'package:betto_onnxrt/src/ort_api.dart'
+    show
+        GetApiC,
+        GetApiDart,
+        OrtGetApiBaseC,
+        OrtGetApiBaseDart,
+        ortApiVersion,
+        ortSlotPtr;
 import 'package:test/test.dart';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -44,8 +52,13 @@ import 'package:test/test.dart';
 /// set up by a `dart build` / AOT pipeline — plain `dart test` JIT mode does
 /// not inject the native-assets path for filename-based opens.
 ///
-/// Returns `false` (and all OnnxSession tests are skipped) whenever the probe
-/// open throws, which is the expected result in CI without a full build.
+/// Also verifies the ORT API version matches [ortApiVersion]. A system-wide
+/// ORT installation of the wrong version (e.g. 1.17.x on Windows CI runners)
+/// opens successfully via `DynamicLibrary.open` but would fail the version
+/// check inside `OnnxRuntime.load()` — this probe catches that case and
+/// returns `false` so the tests are skipped rather than failing.
+///
+/// Returns `false` (and all OnnxSession tests are skipped) on any failure.
 bool _ortLibraryAvailable() {
   try {
     // Use the same name that OnnxRuntime._openLibrary() uses for this platform.
@@ -60,8 +73,20 @@ bool _ortLibraryAvailable() {
       return false; // Android/iOS require full build — always skip in test.
     }
     final lib = DynamicLibrary.open(libName);
+    // Verify the ORT API version matches what this package was built against.
+    // Mirrors the version check in OnnxRuntime.load().
+    final getApiBase = lib.lookupFunction<OrtGetApiBaseC, OrtGetApiBaseDart>(
+      'OrtGetApiBase',
+    );
+    final apiBase = getApiBase();
+    if (apiBase == nullptr) {
+      lib.close();
+      return false;
+    }
+    final getApi = ortSlotPtr<GetApiC>(apiBase, 0).asFunction<GetApiDart>();
+    final compatible = getApi(ortApiVersion) != nullptr;
     lib.close();
-    return true;
+    return compatible;
   } catch (_) {
     return false;
   }
