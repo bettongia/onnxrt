@@ -56,6 +56,14 @@ emulator_ios_create:
 
 # END: Mobile emulators
 
+# START: Container tests
+container_test:
+	podman build -t betto-onnxrt-cicd .
+	podman run --rm betto-onnxrt-cicd
+	#podman run --rm betto-onnxrt-cicd make web_test
+
+# END: Container tests
+
 pre_commit: format_check analyze license_check test
 .PHONY: pre_commit
 

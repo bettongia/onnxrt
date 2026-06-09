@@ -29,7 +29,7 @@ jobs:
       # The all-zeros SHA-256 placeholder means _isValid() trusts existing
       # files, so this cache is effective until real checksums are added.
       - name: Cache ORT binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
@@ -48,7 +48,7 @@ jobs:
           sdk: stable
 
       - name: Cache ORT binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
@@ -67,7 +67,7 @@ jobs:
           sdk: stable
 
       - name: Cache ORT binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
