@@ -60,7 +60,6 @@ emulator_ios_create:
 container_test:
 	podman build -t betto-onnxrt-cicd .
 	podman run --rm betto-onnxrt-cicd
-	#podman run --rm betto-onnxrt-cicd make web_test
 
 # END: Container tests
 

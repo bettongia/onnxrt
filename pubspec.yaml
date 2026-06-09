@@ -4,6 +4,8 @@ description: >
   OnnxSession API, and model-download infrastructure.
 version: 0.1.0-dev.1
 homepage: https://github.com/bettongia/onnxrt
+repository: https://github.com/bettongia/onnxrt
+issue_tracker: https://github.com/bettongia/onnxrt/issues
 
 topics:
   - onnx
@@ -14,10 +16,10 @@ environment:
   sdk: ^3.12.0
 
 dependencies:
-  code_assets: any
-  hooks: any
+  code_assets: ^1.2.1
+  hooks: ^2.0.2
   ffi: ^2.2.0
-  logging: any
+  logging: ^1.3.0
   crypto: ^3.0.0
 
 dev_dependencies:

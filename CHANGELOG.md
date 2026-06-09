@@ -1,0 +1,20 @@
+# Changelog
+
+## 0.1.0-dev.1
+
+Initial development release.
+
+- Native-assets build hook (`hook/build.dart`) that downloads and stages the
+  ONNX Runtime prebuilt binary (v1.22.0) for macOS, Linux, Windows, Android,
+  and iOS.
+- `OnnxRuntime` — opens the staged ORT library and initialises the `OrtApi`
+  vtable.
+- `OnnxSession` — generalised FFI inference session supporting arbitrary named
+  inputs and outputs; exposes output shape via vtable slots 31–33.
+- `OnnxTensor` — typed multi-dimensional array with named factories for
+  `float32`, `float64`, `int32`, `int64`, and `uint8` element types.
+- `SessionOptions` — thread-pool sizing for intra-op and inter-op parallelism.
+- `ModelDownloader` — SHA-256 verified, crash-safe download of ONNX model
+  files described by a `ModelSpec`.
+- `AllowlistProvider` — interface for gating which models `ModelDownloader`
+  is permitted to fetch.

@@ -3,10 +3,10 @@ Dockerfile
 build/
 doc/
 coverage/
-integration_test_app/
 pubspec.lock
 .claude/
 .dart_tool/
+integration_test_app/.dart_tool
 .git/
 .github/
 .gitignore
