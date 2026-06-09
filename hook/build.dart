@@ -323,16 +323,21 @@ Future<void> _buildIos(
     downloadUrl: downloadUrl,
   );
 
+  // ORT iOS XCFramework ships a static library (ar archive), not a dylib.
+  // StaticLinking causes the Dart/Flutter build system to pass the .a to the
+  // linker, making ORT symbols available in the process image at launch.
+  // DynamicLibrary.process() in runtime.dart then finds them without needing
+  // a dlopen call.
   output.assets.code.add(
     CodeAsset(
       package: 'betto_onnxrt',
       name: 'src/ort_library.dart',
-      linkMode: DynamicLoadingBundled(),
+      linkMode: StaticLinking(),
       file: libFile.uri,
     ),
   );
 
-  logger.info('betto_onnxrt: iOS emitted CodeAsset ${libFile.path}');
+  logger.info('betto_onnxrt: iOS emitted CodeAsset (static) ${libFile.path}');
 }
 
 // ── Android ───────────────────────────────────────────────────────────────────
