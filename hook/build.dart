@@ -466,14 +466,16 @@ Future<void> _stripXattrs(File file, Logger logger) async {
   }
 }
 
-/// If [expectedHex] is the all-zeros placeholder (not yet configured), returns
-/// `false` to force a fresh download — this ensures we re-verify after real
-/// checksums are added to the manifest.
+/// Returns `true` if [file] is present and its SHA-256 matches [expectedHex].
+///
+/// When [expectedHex] is the all-zeros placeholder (checksums not yet
+/// configured), the file is accepted as-is if it exists — no digest check.
+/// This keeps CI caches effective while real checksums are pending. When real
+/// checksums are filled in, the digest check re-activates and a corrupt or
+/// wrong-platform file will be rejected and re-downloaded.
 Future<bool> _isValid(File file, String expectedHex) async {
-  // Placeholder checksums — always force re-download so the file gets
-  // re-staged when real checksums are eventually filled in.
-  if (expectedHex == '0' * 64) return false;
   if (!file.existsSync()) return false;
+  if (expectedHex == '0' * 64) return true; // placeholder: trust existing file
   try {
     final bytes = await file.readAsBytes();
     return _sha256PureDart(bytes) == expectedHex;

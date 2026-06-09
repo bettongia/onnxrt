@@ -1,0 +1,75 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Install addlicense
+        run: |
+          go install github.com/google/addlicense@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      # Cache the downloaded ORT binary by ORT version.
+      # The all-zeros SHA-256 placeholder means _isValid() trusts existing
+      # files, so this cache is effective until real checksums are added.
+      - name: Cache ORT binary
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+
+      - run: make cicd
+
+  test-macos:
+    runs-on: macos-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Cache ORT binary
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+
+      - run: make cicd_macos
+
+  test-windows:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Cache ORT binary
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+
+      - run: make cicd_windows
