@@ -41,9 +41,9 @@
 /// via Microsoft's pod archive CDN:
 ///   `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
 ///
-/// The ZIP contains `onnxruntime_c.xcframework/` with two slices:
-/// - `ios-arm64/onnxruntime_c.framework/onnxruntime_c` — physical device
-/// - `ios-arm64_x86_64-simulator/onnxruntime_c.framework/onnxruntime_c` — sim
+/// The ZIP contains `onnxruntime.xcframework/` with two slices:
+/// - `ios-arm64/onnxruntime.framework/onnxruntime` — physical device
+/// - `ios-arm64_x86_64-simulator/onnxruntime.framework/onnxruntime` — sim
 ///
 /// The hook extracts the appropriate Mach-O binary (no extension — standard
 /// framework bundle convention) and emits it as a `CodeAsset` with
@@ -266,8 +266,8 @@ Future<void> _buildDesktop(
 /// Source: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
 ///
 /// ZIP structure (no wrapper directory at root):
-///   onnxruntime_c.xcframework/ios-arm64/onnxruntime_c.framework/onnxruntime_c
-///   onnxruntime_c.xcframework/ios-arm64_x86_64-simulator/onnxruntime_c.framework/onnxruntime_c
+///   onnxruntime.xcframework/ios-arm64/onnxruntime.framework/onnxruntime
+///   onnxruntime.xcframework/ios-arm64_x86_64-simulator/onnxruntime.framework/onnxruntime
 ///
 /// The simulator slice is a fat binary (arm64 + x86_64); we emit it for both
 /// Architecture.arm64 and Architecture.x64 simulator builds.
@@ -303,10 +303,12 @@ Future<void> _buildIos(
   final xcSliceDir = isSimulator ? 'ios-arm64_x86_64-simulator' : 'ios-arm64';
   final sliceSuffix = isSimulator ? 'sim' : 'device';
   // Binary has no extension — standard Apple framework bundle convention.
+  // Verified from pod-archive-onnxruntime-c-1.22.0.zip entry listing (2026-06-10):
+  // the XCFramework root is 'onnxruntime.xcframework', framework is 'onnxruntime.framework'.
   final innerPath =
-      'onnxruntime_c.xcframework/$xcSliceDir/onnxruntime_c.framework/onnxruntime_c';
-  // Give the staged file a .dylib extension so DynamicLibrary.process() finds it.
-  final libFileName = 'libonnxruntime_c-$sliceSuffix.dylib';
+      'onnxruntime.xcframework/$xcSliceDir/onnxruntime.framework/onnxruntime';
+  // Give the staged file a .dylib extension for the CodeAsset file path.
+  final libFileName = 'libonnxruntime-$sliceSuffix.dylib';
 
   final libFile = File('${cacheDir.path}/ios/$libFileName');
   await Directory(libFile.parent.path).create(recursive: true);
