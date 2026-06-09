@@ -1,0 +1,207 @@
+// Copyright 2026 The Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// OnnxSession integration tests.
+///
+/// These tests require the ORT native binary to be staged by the build hook
+/// (`dart build` / `flutter build`). They are therefore **skipped in CI**
+/// unless the hook has already run and produced a cached artifact at
+/// `.dart_tool/betto_onnxrt/{version}/`.
+///
+/// To run locally after the hook has produced the binary:
+///   cd /path/to/onnxrt && dart test test/onnx_session_test.dart
+///
+/// See `docs/spec/28_release_checklist.md` RC-15 for the full manual
+/// verification procedure.
+library;
+
+import 'dart:ffi';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:betto_onnxrt/betto_onnxrt.dart';
+import 'package:test/test.dart';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Returns `true` when `OnnxRuntime.load()` is expected to succeed.
+///
+/// Mirrors the exact platform name that `OnnxRuntime._openLibrary()` passes to
+/// `DynamicLibrary.open` so the probe matches what the actual load path will do.
+/// The library must be on the OS dynamic-linker search path (e.g. via
+/// `DYLD_LIBRARY_PATH` on macOS or `LD_LIBRARY_PATH` on Linux), which is only
+/// set up by a `dart build` / AOT pipeline — plain `dart test` JIT mode does
+/// not inject the native-assets path for filename-based opens.
+///
+/// Returns `false` (and all OnnxSession tests are skipped) whenever the probe
+/// open throws, which is the expected result in CI without a full build.
+bool _ortLibraryAvailable() {
+  try {
+    // Use the same name that OnnxRuntime._openLibrary() uses for this platform.
+    final String libName;
+    if (Platform.isMacOS) {
+      libName = 'libonnxruntime.dylib';
+    } else if (Platform.isLinux) {
+      libName = 'libonnxruntime.so';
+    } else if (Platform.isWindows) {
+      libName = 'onnxruntime.dll';
+    } else {
+      return false; // Android/iOS require full build — always skip in test.
+    }
+    final lib = DynamicLibrary.open(libName);
+    lib.close();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Returns the package root directory.
+///
+/// `dart test` always sets `Directory.current` to the package root when
+/// invoked from the package directory (or via melos). This is more reliable
+/// than `Platform.script`, which can point to a `.dill` snapshot path when
+/// running a single test file.
+String _packageRoot() => Directory.current.path;
+
+/// Skip message shown when the ORT library is not staged.
+const _skipMessage =
+    'ORT binary not staged — run `dart build` (or the betto_onnxrt hook) '
+    'first. See test/onnx_session_test.dart file-level doc and '
+    'docs/spec/28_release_checklist.md RC-15.';
+
+// ── Tiny ONNX fixture path ─────────────────────────────────────────────────---
+
+String get _fixtureModelPath {
+  final packageRoot = _packageRoot();
+  return '$packageRoot/test/fixtures/identity_float32.onnx';
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+void main() {
+  // Evaluate availability once per test run to avoid repeated filesystem hits.
+  final ortAvailable = _ortLibraryAvailable();
+
+  // All groups in this file are skipped unless the ORT library is staged.
+  //
+  // Design rationale: OnnxSession wraps the ORT C API via numeric vtable
+  // slot indices. The FFI binding cannot be exercised without the real binary;
+  // there is no safe way to mock a DynamicLibrary at the Dart level. A tiny
+  // fixture .onnx model (test/fixtures/identity_float32.onnx) is sufficient
+  // for these tests — it does not need to be a real trained model, just a
+  // valid ONNX graph with the expected input/output names and shapes.
+
+  group('OnnxRuntime.load', () {
+    test(
+      'load() returns an OnnxRuntime with a non-null ortApi',
+      skip: ortAvailable ? false : _skipMessage,
+      () async {
+        final rt = await OnnxRuntime.load();
+        addTearDown(rt.dispose);
+        // ortApi is Pointer<Void> — it is non-null when the library loaded.
+        // We test this indirectly: if load() did not throw, the api is valid.
+        expect(rt, isNotNull);
+      },
+    );
+  });
+
+  group('OnnxSession — identity model', () {
+    late OnnxRuntime runtime;
+
+    setUp(() async {
+      if (!ortAvailable) return;
+      runtime = await OnnxRuntime.load();
+    });
+
+    tearDown(() {
+      if (!ortAvailable) return;
+      runtime.dispose();
+    });
+
+    test(
+      'createSession from bytes does not throw',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        final modelBytes =
+            File(_fixtureModelPath).readAsBytesSync();
+        final session = runtime.createSession(modelBytes);
+        addTearDown(session.dispose);
+        expect(session, isNotNull);
+      },
+    );
+
+    test(
+      'createSessionFromFile does not throw',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        final session = runtime.createSessionFromFile(_fixtureModelPath);
+        addTearDown(session.dispose);
+        expect(session, isNotNull);
+      },
+    );
+
+    test(
+      'run() returns one float32 output tensor with correct shape',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // The identity_float32.onnx fixture is a single-op ONNX graph:
+        //   input:  'input'  — float32[1, 4]
+        //   output: 'output' — float32[1, 4]
+        // It passes the input directly to the output (identity op).
+        final session = runtime.createSessionFromFile(_fixtureModelPath);
+        addTearDown(session.dispose);
+
+        final inputData = Float32List.fromList([1.0, 2.0, 3.0, 4.0]);
+        final input = OnnxTensor.fromFloat32([1, 4], inputData);
+
+        final outputs = session.run(
+          inputs: {'input': input},
+          outputNames: ['output'],
+        );
+
+        expect(outputs, hasLength(1));
+        expect(outputs[0].elementType, equals(OnnxElementType.float32));
+        expect(outputs[0].shape, equals([1, 4]));
+
+        final outData = outputs[0].asFloat32();
+        expect(outData, equals([1.0, 2.0, 3.0, 4.0]));
+      },
+    );
+
+    test(
+      'SessionOptions with custom thread counts is accepted',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        const opts = SessionOptions(intraOpNumThreads: 2, interOpNumThreads: 1);
+        final session = runtime.createSessionFromFile(
+          _fixtureModelPath,
+          options: opts,
+        );
+        addTearDown(session.dispose);
+        expect(session, isNotNull);
+      },
+    );
+
+    test(
+      'dispose() can be called without error',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        final session = runtime.createSessionFromFile(_fixtureModelPath);
+        // Should not throw.
+        expect(session.dispose, returnsNormally);
+      },
+    );
+  });
+}

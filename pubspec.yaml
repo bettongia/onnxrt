@@ -1,0 +1,25 @@
+name: betto_onnxrt
+description: >
+  ONNX Runtime for Dart — build-time binary via native-assets hook,
+  generalised OnnxSession API, and model-download infrastructure.
+version: 0.1.0
+homepage: https://github.com/bettongia/onnxrt
+
+topics:
+  - onnx
+  - machine-learning
+  - native-assets
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  code_assets: any
+  hooks: any
+  ffi: ^2.2.0
+  logging: any
+  crypto: ^3.0.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.30.0
