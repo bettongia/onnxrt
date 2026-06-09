@@ -278,66 +278,21 @@ Future<void> _buildIos(
   Architecture arch,
   Uri packageRoot,
 ) async {
-  final version = _readOrtVersion(packageRoot);
-  final cacheDir = _cacheDirectory(packageRoot, version);
-
-  // Determine whether this is a simulator or device build.
-  final iosSdk = input.config.code.iOS.targetSdk;
-  final isSimulator = iosSdk == IOSSdk.iPhoneSimulator;
-
-  // iOS XCFramework is distributed via Microsoft's CDN, not GitHub Releases.
-  final archiveName = 'pod-archive-onnxruntime-c-$version.zip';
-  final downloadUrl =
-      'https://download.onnxruntime.ai/pod-archive-onnxruntime-c-$version.zip';
-
-  final expectedSha = _sha256Manifest[archiveName];
-  if (expectedSha == null) {
-    throw StateError(
-      'No SHA-256 manifest entry for "$archiveName". '
-      'Add the checksum to _sha256Manifest in hook/build.dart.',
-    );
-  }
-
-  // XCFramework slice directory depends on simulator vs device.
-  // The simulator fat slice covers arm64 + x86_64; emit for both arch builds.
-  final xcSliceDir = isSimulator ? 'ios-arm64_x86_64-simulator' : 'ios-arm64';
-  final sliceSuffix = isSimulator ? 'sim' : 'device';
-  // Binary has no extension — standard Apple framework bundle convention.
-  // Verified from pod-archive-onnxruntime-c-1.22.0.zip entry listing (2026-06-10):
-  // the XCFramework root is 'onnxruntime.xcframework', framework is 'onnxruntime.framework'.
-  final innerPath =
-      'onnxruntime.xcframework/$xcSliceDir/onnxruntime.framework/onnxruntime';
-  // Give the staged file a .dylib extension for the CodeAsset file path.
-  final libFileName = 'libonnxruntime-$sliceSuffix.dylib';
-
-  final libFile = File('${cacheDir.path}/ios/$libFileName');
-  await Directory(libFile.parent.path).create(recursive: true);
-
-  await _ensureFile(
-    dest: libFile,
-    archiveName: archiveName,
-    innerPath: innerPath,
-    expectedSha256: expectedSha,
-    version: version,
-    logger: logger,
-    downloadUrl: downloadUrl,
+  // Q1 spike verdict (2026-06-10): iOS native-assets cannot be used for ORT.
+  //
+  // The ORT iOS XCFramework ships a static library (Mach-O ar archive), not a
+  // dylib. Flutter's iOS native-assets system enforces linkModePreference =
+  // dynamic and rejects StaticLinking CodeAssets with:
+  //   "link mode 'static' is not allowed by the input link mode preference 'dynamic'"
+  //
+  // iOS support requires the SPM plugin shim approach. No CodeAsset is emitted
+  // here; OnnxRuntime.load() will throw an UnsupportedError on iOS until the
+  // shim is implemented. See plan_betto_onnxrt_extraction.md Q1 for details.
+  logger.warning(
+    'betto_onnxrt: iOS native-assets not supported — ORT XCFramework is a '
+    'static library; Flutter iOS requires dynamic link mode. '
+    'iOS ORT requires the SPM plugin shim. No CodeAsset emitted.',
   );
-
-  // ORT iOS XCFramework ships a static library (ar archive), not a dylib.
-  // StaticLinking causes the Dart/Flutter build system to pass the .a to the
-  // linker, making ORT symbols available in the process image at launch.
-  // DynamicLibrary.process() in runtime.dart then finds them without needing
-  // a dlopen call.
-  output.assets.code.add(
-    CodeAsset(
-      package: 'betto_onnxrt',
-      name: 'src/ort_library.dart',
-      linkMode: StaticLinking(),
-      file: libFile.uri,
-    ),
-  );
-
-  logger.info('betto_onnxrt: iOS emitted CodeAsset (static) ${libFile.path}');
 }
 
 // ── Android ───────────────────────────────────────────────────────────────────
