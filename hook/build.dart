@@ -441,6 +441,7 @@ Future<void> _ensureFile({
   // Fast path: file already present and checksum valid.
   if (await _isValid(dest, expectedSha256)) {
     logger.info('  cached: ${dest.path}');
+    if (Platform.isMacOS) await _stripXattrs(dest, logger);
     return;
   }
 
@@ -485,11 +486,26 @@ Future<void> _ensureFile({
   final tempFile = File('${dest.path}.part');
   await tempFile.writeAsBytes(fileBytes, flush: true);
   await tempFile.rename(dest.path);
+  if (Platform.isMacOS) await _stripXattrs(dest, logger);
   logger.info('  staged: ${dest.path}');
 }
 
 /// Returns `true` if [file] exists and its SHA-256 matches [expectedHex].
 ///
+/// Strips all extended attributes from [file] on macOS.
+///
+/// macOS sets `com.apple.provenance` (and sometimes `com.apple.quarantine`)
+/// on any file that was written by a process that downloaded it from the
+/// network. `install_name_tool`, which Dart's native-assets bundler runs when
+/// packaging dylibs for test/run, refuses to modify files carrying those
+/// attributes — producing "cannot rename … XXXXXX: No such file or directory".
+Future<void> _stripXattrs(File file, Logger logger) async {
+  final result = await Process.run('xattr', ['-c', file.path]);
+  if (result.exitCode != 0) {
+    logger.warning('  xattr -c failed for ${file.path}: ${result.stderr}');
+  }
+}
+
 /// If [expectedHex] is the all-zeros placeholder (not yet configured), returns
 /// `false` to force a fresh download — this ensures we re-verify after real
 /// checksums are added to the manifest.
@@ -618,8 +634,9 @@ List<int> _extractFromZip(
       return compressed; // stored — no compression
     }
     if (compressionMethod == 8) {
-      // DEFLATE — use raw inflate (no zlib header/trailer)
-      return zlib.decoder.convert(compressed);
+      // ZIP uses raw DEFLATE (no zlib header/trailer); ZLibDecoder(raw:true)
+      // skips the zlib envelope that plain zlib.decoder expects.
+      return ZLibDecoder(raw: true).convert(compressed);
     }
     throw UnsupportedError(
       'Unsupported ZIP compression method $compressionMethod in $archiveName',
