@@ -57,9 +57,9 @@ enum OnnxElementType {
   /// and when interpreting output tensor types via `GetTensorTypeAndShapeInfo`.
   int get onnxTypeCode => switch (this) {
     OnnxElementType.float32 => onnxElementTypeFloat32,
-    OnnxElementType.uint8   => onnxElementTypeUint8,
-    OnnxElementType.int32   => onnxElementTypeInt32,
-    OnnxElementType.int64   => onnxElementTypeInt64,
+    OnnxElementType.uint8 => onnxElementTypeUint8,
+    OnnxElementType.int32 => onnxElementTypeInt32,
+    OnnxElementType.int64 => onnxElementTypeInt64,
     OnnxElementType.float64 => onnxElementTypeFloat64,
   };
 
@@ -69,12 +69,12 @@ enum OnnxElementType {
   /// supported type.
   static OnnxElementType fromOnnxTypeCode(int onnxTypeCode) =>
       switch (onnxTypeCode) {
-        1  => OnnxElementType.float32,
-        2  => OnnxElementType.uint8,
-        6  => OnnxElementType.int32,
-        7  => OnnxElementType.int64,
+        1 => OnnxElementType.float32,
+        2 => OnnxElementType.uint8,
+        6 => OnnxElementType.int32,
+        7 => OnnxElementType.int64,
         11 => OnnxElementType.float64,
-        _  => throw ArgumentError(
+        _ => throw ArgumentError(
           'Unsupported ONNX tensor element type code: $onnxTypeCode. '
           'Supported codes: 1 (float32), 2 (uint8), 6 (int32), 7 (int64), '
           '11 (float64).',
@@ -84,9 +84,9 @@ enum OnnxElementType {
   /// The size in bytes of a single element of this type.
   int get elementSizeInBytes => switch (this) {
     OnnxElementType.float32 => 4,
-    OnnxElementType.uint8   => 1,
-    OnnxElementType.int32   => 4,
-    OnnxElementType.int64   => 8,
+    OnnxElementType.uint8 => 1,
+    OnnxElementType.int32 => 4,
+    OnnxElementType.int64 => 8,
     OnnxElementType.float64 => 8,
   };
 }
@@ -138,7 +138,11 @@ final class OnnxTensor {
 
   /// Creates a float32 tensor with the given [shape] and [data].
   factory OnnxTensor.fromFloat32(List<int> shape, Float32List data) =>
-      OnnxTensor(elementType: OnnxElementType.float32, shape: shape, data: data);
+      OnnxTensor(
+        elementType: OnnxElementType.float32,
+        shape: shape,
+        data: data,
+      );
 
   /// Creates a uint8 tensor with the given [shape] and [data].
   factory OnnxTensor.fromUint8(List<int> shape, Uint8List data) =>
@@ -154,7 +158,11 @@ final class OnnxTensor {
 
   /// Creates a float64 tensor with the given [shape] and [data].
   factory OnnxTensor.fromFloat64(List<int> shape, Float64List data) =>
-      OnnxTensor(elementType: OnnxElementType.float64, shape: shape, data: data);
+      OnnxTensor(
+        elementType: OnnxElementType.float64,
+        shape: shape,
+        data: data,
+      );
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -166,9 +174,7 @@ final class OnnxTensor {
   /// Throws [StateError] if [elementType] is not [OnnxElementType.float32].
   Float32List asFloat32() {
     if (elementType != OnnxElementType.float32) {
-      throw StateError(
-        'Cannot view $elementType tensor as Float32List.',
-      );
+      throw StateError('Cannot view $elementType tensor as Float32List.');
     }
     return data as Float32List;
   }

@@ -56,6 +56,9 @@ emulator_ios_create:
 
 # END: Mobile emulators
 
+pre_commit: format_check analyze license_check test
+.PHONY: pre_commit
+
 format:
 	dart format lib/ test/ hook/ tool/
 .PHONY: format

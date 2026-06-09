@@ -41,19 +41,34 @@ void main() {
 
     group('fromOnnxTypeCode', () {
       test('code 1 → float32', () {
-        expect(OnnxElementType.fromOnnxTypeCode(1), equals(OnnxElementType.float32));
+        expect(
+          OnnxElementType.fromOnnxTypeCode(1),
+          equals(OnnxElementType.float32),
+        );
       });
       test('code 2 → uint8', () {
-        expect(OnnxElementType.fromOnnxTypeCode(2), equals(OnnxElementType.uint8));
+        expect(
+          OnnxElementType.fromOnnxTypeCode(2),
+          equals(OnnxElementType.uint8),
+        );
       });
       test('code 6 → int32', () {
-        expect(OnnxElementType.fromOnnxTypeCode(6), equals(OnnxElementType.int32));
+        expect(
+          OnnxElementType.fromOnnxTypeCode(6),
+          equals(OnnxElementType.int32),
+        );
       });
       test('code 7 → int64', () {
-        expect(OnnxElementType.fromOnnxTypeCode(7), equals(OnnxElementType.int64));
+        expect(
+          OnnxElementType.fromOnnxTypeCode(7),
+          equals(OnnxElementType.int64),
+        );
       });
       test('code 11 → float64', () {
-        expect(OnnxElementType.fromOnnxTypeCode(11), equals(OnnxElementType.float64));
+        expect(
+          OnnxElementType.fromOnnxTypeCode(11),
+          equals(OnnxElementType.float64),
+        );
       });
       test('unsupported code throws ArgumentError', () {
         expect(
@@ -201,8 +216,7 @@ void main() {
       });
 
       test('throws StateError for non-int64 tensor', () {
-        final tensor =
-            OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
+        final tensor = OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
         expect(() => tensor.asInt64(), throwsA(isA<StateError>()));
       });
     });

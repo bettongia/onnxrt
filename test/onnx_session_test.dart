@@ -134,8 +134,7 @@ void main() {
       'createSession from bytes does not throw',
       skip: ortAvailable ? false : _skipMessage,
       () {
-        final modelBytes =
-            File(_fixtureModelPath).readAsBytesSync();
+        final modelBytes = File(_fixtureModelPath).readAsBytesSync();
         final session = runtime.createSession(modelBytes);
         addTearDown(session.dispose);
         expect(session, isNotNull);

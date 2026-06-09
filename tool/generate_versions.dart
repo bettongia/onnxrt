@@ -35,7 +35,9 @@ void main() {
 
   // Read the version string and strip leading 'v' and whitespace.
   final rawVersion = versionFile.readAsStringSync().trim();
-  final version = rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
+  final version = rawVersion.startsWith('v')
+      ? rawVersion.substring(1)
+      : rawVersion;
   // Keep the full version tag (e.g. "v1.22.0") for URL construction.
   final versionTag = rawVersion.startsWith('v') ? rawVersion : 'v$rawVersion';
 

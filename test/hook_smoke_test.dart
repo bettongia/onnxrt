@@ -58,8 +58,9 @@ void main() {
       // If the hook errored, the test runner itself would have aborted before
       // reaching this test. The presence of native_assets.yaml confirms the
       // hook completed successfully (it is written by the hooks_runner).
-      final nativeAssetsFile =
-          File('$packageRoot/.dart_tool/native_assets.yaml');
+      final nativeAssetsFile = File(
+        '$packageRoot/.dart_tool/native_assets.yaml',
+      );
       expect(
         nativeAssetsFile.existsSync(),
         isTrue,
@@ -78,10 +79,13 @@ void main() {
         // VERSION_ONNX missing — package is incomplete; skip gracefully.
         return;
       }
-      final version =
-          versionFile.readAsStringSync().trim().replaceFirst('v', '');
-      final cacheDir =
-          Directory('$packageRoot/.dart_tool/betto_onnxrt/$version');
+      final version = versionFile.readAsStringSync().trim().replaceFirst(
+        'v',
+        '',
+      );
+      final cacheDir = Directory(
+        '$packageRoot/.dart_tool/betto_onnxrt/$version',
+      );
 
       if (!cacheDir.existsSync()) {
         // Cache dir absent means hook has not downloaded anything yet

@@ -37,15 +37,19 @@
 ///
 /// ## iOS
 ///
-/// For iOS the ORT GitHub Releases ship an XCFramework tarball
-/// (`onnxruntime-ios-xcframework-{ver}.tgz`). The hook extracts the
-/// per-architecture dylib slice from the XCFramework directory:
-/// - Physical device (arm64): `onnxruntime.xcframework/ios-arm64/libonnxruntime.dylib`
-/// - Simulator arm64/x64: `onnxruntime.xcframework/ios-arm64_x86_64-simulator/libonnxruntime.dylib`
+/// The iOS XCFramework is NOT in the ORT GitHub Releases. It is distributed
+/// via Microsoft's pod archive CDN:
+///   `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
 ///
-/// Flutter tools (`copyNativeCodeAssetsIOS`) uses `lipo` to combine per-arch
-/// slices into a fat `.framework`. The hook emits one `CodeAsset` per hook
-/// invocation — Flutter handles the fat binary step across invocations.
+/// The ZIP contains `onnxruntime_c.xcframework/` with two slices:
+/// - `ios-arm64/onnxruntime_c.framework/onnxruntime_c` — physical device
+/// - `ios-arm64_x86_64-simulator/onnxruntime_c.framework/onnxruntime_c` — sim
+///
+/// The hook extracts the appropriate Mach-O binary (no extension — standard
+/// framework bundle convention) and emits it as a `CodeAsset` with
+/// `DynamicLoadingBundled`. Flutter's iOS build system embeds it in the app
+/// bundle and adds it to the link phase so it is present in the process image
+/// at launch, which is why `runtime.dart` uses `DynamicLibrary.process()`.
 ///
 /// ## Provenance waiver
 ///
@@ -129,10 +133,10 @@ const _sha256Manifest = <String, String>{
       '0000000000000000000000000000000000000000000000000000000000000000',
   'onnxruntime-win-x64-1.22.0.zip':
       '0000000000000000000000000000000000000000000000000000000000000000',
-  // iOS XCFramework — NOT present in the v1.22.0 GitHub release assets.
-  // This entry is a placeholder; _buildIos will fail until a valid artifact
-  // source is identified (Microsoft CocoaPods or a future GitHub release).
-  'onnxruntime-ios-xcframework-1.22.0.tgz':
+  // iOS XCFramework — distributed via Microsoft's pod archive CDN, NOT GitHub
+  // Releases. URL: https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.22.0.zip
+  // TODO(betto_onnxrt#2): compute with: curl -fsSL <url> | sha256sum
+  'pod-archive-onnxruntime-c-1.22.0.zip':
       '0000000000000000000000000000000000000000000000000000000000000000',
   // Android AAR — NOT present in the v1.22.0 GitHub release assets.
   // This entry is a placeholder; _buildAndroid will fail until the Maven
@@ -185,8 +189,11 @@ Future<void> _buildDesktop(
   final version = _readOrtVersion(packageRoot);
   final cacheDir = _cacheDirectory(packageRoot, version);
 
-  final (archiveName, libPathInArchive, libFileName) =
-      _desktopArtifact(os, arch, version);
+  final (archiveName, libPathInArchive, libFileName) = _desktopArtifact(
+    os,
+    arch,
+    version,
+  );
 
   final expectedSha = _sha256Manifest[archiveName];
   if (expectedSha == null) {
@@ -219,7 +226,11 @@ Future<void> _buildDesktop(
 }
 
 /// Returns `(archiveName, pathInsideArchive, localLibFileName)` for desktop.
-(String, String, String) _desktopArtifact(OS os, Architecture arch, String version) {
+(String, String, String) _desktopArtifact(
+  OS os,
+  Architecture arch,
+  String version,
+) {
   final dartArch = _dartArchString(arch);
 
   if (os == OS.macOS) {
@@ -227,14 +238,16 @@ Future<void> _buildDesktop(
     // for Intel Macs — verified against the v1.22.0 asset list 2026-06-09.
     final osxArch = arch == Architecture.x64 ? 'x86_64' : dartArch;
     final archive = 'onnxruntime-osx-$osxArch-$version.tgz';
-    final inner = 'onnxruntime-osx-$osxArch-$version/lib/libonnxruntime.$version.dylib';
+    final inner =
+        'onnxruntime-osx-$osxArch-$version/lib/libonnxruntime.$version.dylib';
     return (archive, inner, 'libonnxruntime.$version.dylib');
   }
   if (os == OS.linux) {
     // ORT Linux archives use 'aarch64' for arm64, 'x64' for x64.
     final linuxArch = arch == Architecture.arm64 ? 'aarch64' : 'x64';
     final archive = 'onnxruntime-linux-$linuxArch-$version.tgz';
-    final inner = 'onnxruntime-linux-$linuxArch-$version/lib/libonnxruntime.so.$version';
+    final inner =
+        'onnxruntime-linux-$linuxArch-$version/lib/libonnxruntime.so.$version';
     return (archive, inner, 'libonnxruntime.so.$version');
   }
   if (os == OS.windows) {
@@ -248,14 +261,16 @@ Future<void> _buildDesktop(
 
 // ── iOS ───────────────────────────────────────────────────────────────────────
 
-/// Builds for iOS: extracts the appropriate dylib slice from the ORT XCFramework.
+/// Builds for iOS: extracts the per-SDK Mach-O binary from the ORT XCFramework.
 ///
-/// The XCFramework tarball contains:
-///   onnxruntime.xcframework/ios-arm64/libonnxruntime.dylib             — device
-///   onnxruntime.xcframework/ios-arm64_x86_64-simulator/libonnxruntime.dylib — sim
+/// Source: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
 ///
-/// Flutter tools uses `lipo` to combine slices into a fat `.framework`.
-/// The hook emits one `CodeAsset` per hook invocation (one per architecture).
+/// ZIP structure (no wrapper directory at root):
+///   onnxruntime_c.xcframework/ios-arm64/onnxruntime_c.framework/onnxruntime_c
+///   onnxruntime_c.xcframework/ios-arm64_x86_64-simulator/onnxruntime_c.framework/onnxruntime_c
+///
+/// The simulator slice is a fat binary (arm64 + x86_64); we emit it for both
+/// Architecture.arm64 and Architecture.x64 simulator builds.
 Future<void> _buildIos(
   BuildInput input,
   BuildOutputBuilder output,
@@ -270,35 +285,40 @@ Future<void> _buildIos(
   final iosSdk = input.config.code.iOS.targetSdk;
   final isSimulator = iosSdk == IOSSdk.iPhoneSimulator;
 
-  const archiveName = 'onnxruntime-ios-xcframework-1.22.0.tgz';
-  // Archive-name must match the version — derive it instead:
-  final versionedArchiveName = 'onnxruntime-ios-xcframework-$version.tgz';
-  final expectedSha = _sha256Manifest[versionedArchiveName];
+  // iOS XCFramework is distributed via Microsoft's CDN, not GitHub Releases.
+  final archiveName = 'pod-archive-onnxruntime-c-$version.zip';
+  final downloadUrl =
+      'https://download.onnxruntime.ai/pod-archive-onnxruntime-c-$version.zip';
+
+  final expectedSha = _sha256Manifest[archiveName];
   if (expectedSha == null) {
     throw StateError(
-      'No SHA-256 manifest entry for "$versionedArchiveName". '
+      'No SHA-256 manifest entry for "$archiveName". '
       'Add the checksum to _sha256Manifest in hook/build.dart.',
     );
   }
 
-  // XCFramework slice directory and output filename depend on simulator vs device.
-  // The simulator fat slice covers both arm64 and x86_64; we emit it for both
-  // Architecture.arm64 and Architecture.x64 simulator builds.
+  // XCFramework slice directory depends on simulator vs device.
+  // The simulator fat slice covers arm64 + x86_64; emit for both arch builds.
   final xcSliceDir = isSimulator ? 'ios-arm64_x86_64-simulator' : 'ios-arm64';
   final sliceSuffix = isSimulator ? 'sim' : 'device';
-  final innerPath = 'onnxruntime.xcframework/$xcSliceDir/libonnxruntime.dylib';
-  final libFileName = 'libonnxruntime-$sliceSuffix.dylib';
+  // Binary has no extension — standard Apple framework bundle convention.
+  final innerPath =
+      'onnxruntime_c.xcframework/$xcSliceDir/onnxruntime_c.framework/onnxruntime_c';
+  // Give the staged file a .dylib extension so DynamicLibrary.process() finds it.
+  final libFileName = 'libonnxruntime_c-$sliceSuffix.dylib';
 
   final libFile = File('${cacheDir.path}/ios/$libFileName');
   await Directory(libFile.parent.path).create(recursive: true);
 
   await _ensureFile(
     dest: libFile,
-    archiveName: versionedArchiveName,
+    archiveName: archiveName,
     innerPath: innerPath,
     expectedSha256: expectedSha,
     version: version,
     logger: logger,
+    downloadUrl: downloadUrl,
   );
 
   output.assets.code.add(
@@ -311,9 +331,6 @@ Future<void> _buildIos(
   );
 
   logger.info('betto_onnxrt: iOS emitted CodeAsset ${libFile.path}');
-  // Suppress unused variable warning — archiveName is kept as documentation.
-  // ignore: dead_code
-  final _ = archiveName;
 }
 
 // ── Android ───────────────────────────────────────────────────────────────────
@@ -427,9 +444,10 @@ Future<void> _ensureFile({
 
   await dest.parent.create(recursive: true);
 
-  final url = downloadUrl ??
+  final url =
+      downloadUrl ??
       'https://github.com/microsoft/onnxruntime/releases/download'
-      '/v$version/$archiveName';
+          '/v$version/$archiveName';
 
   logger.info('  downloading $archiveName ...');
   final archiveBytes = await _download(url, logger);
@@ -632,7 +650,9 @@ List<int> _extractFromTar(
     // Parse filename from the 100-byte name field (null-terminated, UTF-8).
     final nameBytes = header.sublist(0, 100);
     final nameNulIdx = nameBytes.indexOf(0);
-    var entryName = utf8.decode(nameBytes.sublist(0, nameNulIdx < 0 ? 100 : nameNulIdx));
+    var entryName = utf8.decode(
+      nameBytes.sublist(0, nameNulIdx < 0 ? 100 : nameNulIdx),
+    );
 
     // GNU long-name record: typeflag == 0x4c ('L').
     // The data block(s) that follow contain the full path (null-terminated).
@@ -660,7 +680,9 @@ List<int> _extractFromTar(
     final dataSize = int.parse(sizeStr.isEmpty ? '0' : sizeStr, radix: 8);
 
     // Normalise entry name (strip leading ./ if present).
-    final normalised = entryName.startsWith('./') ? entryName.substring(2) : entryName;
+    final normalised = entryName.startsWith('./')
+        ? entryName.substring(2)
+        : entryName;
     if (normalised == innerPath) {
       return tarBytes.sublist(pos, pos + dataSize);
     }
@@ -709,24 +731,83 @@ String _sha256PureDart(Uint8List message) {
   // Initial hash values: first 32 bits of fractional parts of sqrt of first 8
   // primes (2, 3, 5, 7, 11, 13, 17, 19).
   final h = Uint32List.fromList([
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    0x6a09e667,
+    0xbb67ae85,
+    0x3c6ef372,
+    0xa54ff53a,
+    0x510e527f,
+    0x9b05688c,
+    0x1f83d9ab,
+    0x5be0cd19,
   ]);
 
   // Round constants: first 32 bits of fractional parts of cbrt of first 64
   // primes.
   const k = <int>[
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    0x428a2f98,
+    0x71374491,
+    0xb5c0fbcf,
+    0xe9b5dba5,
+    0x3956c25b,
+    0x59f111f1,
+    0x923f82a4,
+    0xab1c5ed5,
+    0xd807aa98,
+    0x12835b01,
+    0x243185be,
+    0x550c7dc3,
+    0x72be5d74,
+    0x80deb1fe,
+    0x9bdc06a7,
+    0xc19bf174,
+    0xe49b69c1,
+    0xefbe4786,
+    0x0fc19dc6,
+    0x240ca1cc,
+    0x2de92c6f,
+    0x4a7484aa,
+    0x5cb0a9dc,
+    0x76f988da,
+    0x983e5152,
+    0xa831c66d,
+    0xb00327c8,
+    0xbf597fc7,
+    0xc6e00bf3,
+    0xd5a79147,
+    0x06ca6351,
+    0x14292967,
+    0x27b70a85,
+    0x2e1b2138,
+    0x4d2c6dfc,
+    0x53380d13,
+    0x650a7354,
+    0x766a0abb,
+    0x81c2c92e,
+    0x92722c85,
+    0xa2bfe8a1,
+    0xa81a664b,
+    0xc24b8b70,
+    0xc76c51a3,
+    0xd192e819,
+    0xd6990624,
+    0xf40e3585,
+    0x106aa070,
+    0x19a4c116,
+    0x1e376c08,
+    0x2748774c,
+    0x34b0bcb5,
+    0x391c0cb3,
+    0x4ed8aa4a,
+    0x5b9cca4f,
+    0x682e6ff3,
+    0x748f82ee,
+    0x78a5636f,
+    0x84c87814,
+    0x8cc70208,
+    0x90befffa,
+    0xa4506ceb,
+    0xbef9a3f7,
+    0xc67178f2,
   ];
 
   // Pre-processing: pad message to a multiple of 512 bits.
@@ -748,15 +829,18 @@ String _sha256PureDart(Uint8List message) {
   for (var chunk = 0; chunk < paddedLen; chunk += 64) {
     // Prepare the message schedule: first 16 words from the chunk.
     for (var i = 0; i < 16; i++) {
-      w[i] = (padded[chunk + i * 4] << 24) |
+      w[i] =
+          (padded[chunk + i * 4] << 24) |
           (padded[chunk + i * 4 + 1] << 16) |
           (padded[chunk + i * 4 + 2] << 8) |
           padded[chunk + i * 4 + 3];
     }
     // Extend to 64 words.
     for (var i = 16; i < 64; i++) {
-      final s0 = _rotr32(w[i - 15], 7) ^ _rotr32(w[i - 15], 18) ^ (w[i - 15] >>> 3);
-      final s1 = _rotr32(w[i - 2], 17) ^ _rotr32(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      final s0 =
+          _rotr32(w[i - 15], 7) ^ _rotr32(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      final s1 =
+          _rotr32(w[i - 2], 17) ^ _rotr32(w[i - 2], 19) ^ (w[i - 2] >>> 10);
       w[i] = _u32(w[i - 16] + s0 + w[i - 7] + s1);
     }
 
@@ -773,17 +857,25 @@ String _sha256PureDart(Uint8List message) {
       final maj = (a & b) ^ (a & c) ^ (b & c);
       final temp2 = _u32(s0 + maj);
 
-      hh = g; g = f; f = e;
+      hh = g;
+      g = f;
+      f = e;
       e = _u32(d + temp1);
-      d = c; c = b; b = a;
+      d = c;
+      c = b;
+      b = a;
       a = _u32(temp1 + temp2);
     }
 
     // Add the compressed chunk to the current hash value.
-    h[0] = _u32(h[0] + a); h[1] = _u32(h[1] + b);
-    h[2] = _u32(h[2] + c); h[3] = _u32(h[3] + d);
-    h[4] = _u32(h[4] + e); h[5] = _u32(h[5] + f);
-    h[6] = _u32(h[6] + g); h[7] = _u32(h[7] + hh);
+    h[0] = _u32(h[0] + a);
+    h[1] = _u32(h[1] + b);
+    h[2] = _u32(h[2] + c);
+    h[3] = _u32(h[3] + d);
+    h[4] = _u32(h[4] + e);
+    h[5] = _u32(h[5] + f);
+    h[6] = _u32(h[6] + g);
+    h[7] = _u32(h[7] + hh);
   }
 
   // Produce the final 256-bit (32-byte) digest as a lowercase hex string.

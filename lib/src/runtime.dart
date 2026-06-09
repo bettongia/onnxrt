@@ -119,7 +119,8 @@ final class OnnxRuntime {
     // file path. We write the model to a temp file, open a session, then
     // delete the temp file. The session retains everything it needs in memory
     // after CreateSession returns, so deleting the file is safe.
-    final tmpPath = '${Directory.systemTemp.path}'
+    final tmpPath =
+        '${Directory.systemTemp.path}'
         '/betto_onnxrt_${DateTime.now().microsecondsSinceEpoch}.onnx';
     final tmpFile = File(tmpPath)..writeAsBytesSync(modelBytes, flush: true);
     try {

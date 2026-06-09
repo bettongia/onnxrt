@@ -88,8 +88,8 @@ final class ModelDownloader {
   ModelDownloader({
     AllowlistProvider? allowlist,
     HttpClient Function()? httpClientFactory,
-  })  : _allowlist = allowlist, // ignore: prefer_initializing_formals
-        _httpClientFactory = httpClientFactory ?? HttpClient.new;
+  }) : _allowlist = allowlist, // ignore: prefer_initializing_formals
+       _httpClientFactory = httpClientFactory ?? HttpClient.new;
 
   final AllowlistProvider? _allowlist;
   final HttpClient Function() _httpClientFactory;
@@ -200,10 +200,9 @@ final class ModelDownloader {
         );
       }
 
-      final totalBytes =
-          response.headers.contentLength < 0
-              ? -1
-              : response.headers.contentLength;
+      final totalBytes = response.headers.contentLength < 0
+          ? -1
+          : response.headers.contentLength;
       var receivedBytes = 0;
 
       // Stream the response to the temp file and accumulate bytes for

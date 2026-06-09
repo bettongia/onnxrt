@@ -30,7 +30,7 @@ String _sha256Hex(List<int> bytes) => sha256.convert(bytes).toString();
 /// Set [statusCode] to a non-2xx value to simulate server errors.
 class _FakeHttpServer {
   _FakeHttpServer({this.statusCode = 200, Map<String, List<int>>? responses})
-      : _responses = responses ?? {};
+    : _responses = responses ?? {};
 
   final int statusCode;
   final Map<String, List<int>> _responses;
@@ -67,10 +67,7 @@ class _FakeHttpClientRequest implements HttpClientRequest {
   @override
   Future<HttpClientResponse> close() async {
     final body = _server._responses[_url.toString()] ?? <int>[];
-    return _FakeHttpClientResponse(
-      statusCode: _server.statusCode,
-      body: body,
-    );
+    return _FakeHttpClientResponse(statusCode: _server.statusCode, body: body);
   }
 
   @override
@@ -158,8 +155,9 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir =
-        await Directory.systemTemp.createTemp('betto_onnxrt_downloader_test_');
+    tempDir = await Directory.systemTemp.createTemp(
+      'betto_onnxrt_downloader_test_',
+    );
   });
 
   tearDown(() async {
@@ -288,49 +286,48 @@ void main() {
       // At least one progress event should have been fired per file.
       expect(progressCalls, isNotEmpty);
       // The last progress call for the first file should report its full length.
-      expect(
-        progressCalls.any((c) => c.received == onnxBytes.length),
-        isTrue,
-      );
+      expect(progressCalls.any((c) => c.received == onnxBytes.length), isTrue);
     });
   });
 
   // ── Present-file short-circuit ──────────────────────────────────────────────
 
   group('ModelDownloader — present-file short-circuit', () {
-    test('skips download when both files are cached with correct checksums',
-        () async {
-      final onnxBytes = [1, 2, 3];
-      final configBytes = [4, 5, 6];
-      final spec = _makeSpec(
-        id: 'cached-model',
-        onnxBytes: onnxBytes,
-        configBytes: configBytes,
-      );
+    test(
+      'skips download when both files are cached with correct checksums',
+      () async {
+        final onnxBytes = [1, 2, 3];
+        final configBytes = [4, 5, 6];
+        final spec = _makeSpec(
+          id: 'cached-model',
+          onnxBytes: onnxBytes,
+          configBytes: configBytes,
+        );
 
-      // Pre-populate the cache with correctly named files and correct content.
-      final modelDir = Directory('${tempDir.path}/cached-model');
-      await modelDir.create(recursive: true);
-      // The downloader derives local filenames from the URL path segment.
-      await File('${modelDir.path}/model.onnx').writeAsBytes(onnxBytes);
-      await File('${modelDir.path}/config.json').writeAsBytes(configBytes);
+        // Pre-populate the cache with correctly named files and correct content.
+        final modelDir = Directory('${tempDir.path}/cached-model');
+        await modelDir.create(recursive: true);
+        // The downloader derives local filenames from the URL path segment.
+        await File('${modelDir.path}/model.onnx').writeAsBytes(onnxBytes);
+        await File('${modelDir.path}/config.json').writeAsBytes(configBytes);
 
-      // Server returns wrong bytes — proves it is never contacted.
-      final server = _FakeHttpServer(
-        responses: {
-          spec.files['onnx']!.url.toString(): [99],
-          spec.files['config']!.url.toString(): [99],
-        },
-      );
+        // Server returns wrong bytes — proves it is never contacted.
+        final server = _FakeHttpServer(
+          responses: {
+            spec.files['onnx']!.url.toString(): [99],
+            spec.files['config']!.url.toString(): [99],
+          },
+        );
 
-      final downloader = ModelDownloader(
-        httpClientFactory: () => server.client,
-      );
+        final downloader = ModelDownloader(
+          httpClientFactory: () => server.client,
+        );
 
-      await downloader.ensure(spec, cacheDir: tempDir.path);
+        await downloader.ensure(spec, cacheDir: tempDir.path);
 
-      expect(server.requestedUrls, isEmpty);
-    });
+        expect(server.requestedUrls, isEmpty);
+      },
+    );
 
     test('re-downloads only the file with a bad checksum', () async {
       final onnxBytes = [1, 2, 3];
@@ -367,120 +364,126 @@ void main() {
       );
     });
 
-    test('re-downloads file whose cached content does not match checksum',
-        () async {
-      final onnxBytes = [1, 2, 3];
-      final configBytes = [4, 5, 6];
-      final spec = _makeSpec(
-        id: 'bad-cache',
-        onnxBytes: onnxBytes,
-        configBytes: configBytes,
-      );
+    test(
+      're-downloads file whose cached content does not match checksum',
+      () async {
+        final onnxBytes = [1, 2, 3];
+        final configBytes = [4, 5, 6];
+        final spec = _makeSpec(
+          id: 'bad-cache',
+          onnxBytes: onnxBytes,
+          configBytes: configBytes,
+        );
 
-      // Pre-populate model.onnx with the wrong bytes.
-      final modelDir = Directory('${tempDir.path}/bad-cache');
-      await modelDir.create(recursive: true);
-      await File('${modelDir.path}/model.onnx').writeAsBytes([9, 9, 9]);
-      await File('${modelDir.path}/config.json').writeAsBytes(configBytes);
+        // Pre-populate model.onnx with the wrong bytes.
+        final modelDir = Directory('${tempDir.path}/bad-cache');
+        await modelDir.create(recursive: true);
+        await File('${modelDir.path}/model.onnx').writeAsBytes([9, 9, 9]);
+        await File('${modelDir.path}/config.json').writeAsBytes(configBytes);
 
-      final server = _FakeHttpServer(
-        responses: {
-          spec.files['onnx']!.url.toString(): onnxBytes,
-          spec.files['config']!.url.toString(): [99], // should not be fetched
-        },
-      );
+        final server = _FakeHttpServer(
+          responses: {
+            spec.files['onnx']!.url.toString(): onnxBytes,
+            spec.files['config']!.url.toString(): [99], // should not be fetched
+          },
+        );
 
-      final downloader = ModelDownloader(
-        httpClientFactory: () => server.client,
-      );
+        final downloader = ModelDownloader(
+          httpClientFactory: () => server.client,
+        );
 
-      await downloader.ensure(spec, cacheDir: tempDir.path);
+        await downloader.ensure(spec, cacheDir: tempDir.path);
 
-      // Only the onnx URL should have been re-fetched.
-      expect(
-        server.requestedUrls,
-        equals([spec.files['onnx']!.url.toString()]),
-      );
-      // The file should now contain the correct bytes.
-      expect(
-        File('${modelDir.path}/model.onnx').readAsBytesSync(),
-        equals(onnxBytes),
-      );
-    });
+        // Only the onnx URL should have been re-fetched.
+        expect(
+          server.requestedUrls,
+          equals([spec.files['onnx']!.url.toString()]),
+        );
+        // The file should now contain the correct bytes.
+        expect(
+          File('${modelDir.path}/model.onnx').readAsBytesSync(),
+          equals(onnxBytes),
+        );
+      },
+    );
   });
 
   // ── Checksum mismatch error ─────────────────────────────────────────────────
 
   group('ModelDownloader — checksum mismatch error', () {
-    test('throws StateError when server returns bytes with wrong checksum',
-        () async {
-      final onnxBytes = [1, 2, 3];
-      final configBytes = [4, 5, 6];
-      final spec = _makeSpec(
-        id: 'corrupt-onnx',
-        onnxBytes: onnxBytes,
-        configBytes: configBytes,
-      );
+    test(
+      'throws StateError when server returns bytes with wrong checksum',
+      () async {
+        final onnxBytes = [1, 2, 3];
+        final configBytes = [4, 5, 6];
+        final spec = _makeSpec(
+          id: 'corrupt-onnx',
+          onnxBytes: onnxBytes,
+          configBytes: configBytes,
+        );
 
-      // Server returns different bytes — checksum will not match.
-      final server = _FakeHttpServer(
-        responses: {
-          spec.files['onnx']!.url.toString(): [0, 0, 0],
-          spec.files['config']!.url.toString(): configBytes,
-        },
-      );
+        // Server returns different bytes — checksum will not match.
+        final server = _FakeHttpServer(
+          responses: {
+            spec.files['onnx']!.url.toString(): [0, 0, 0],
+            spec.files['config']!.url.toString(): configBytes,
+          },
+        );
 
-      final downloader = ModelDownloader(
-        httpClientFactory: () => server.client,
-      );
+        final downloader = ModelDownloader(
+          httpClientFactory: () => server.client,
+        );
 
-      await expectLater(
-        downloader.ensure(spec, cacheDir: tempDir.path),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            contains('checksum mismatch'),
+        await expectLater(
+          downloader.ensure(spec, cacheDir: tempDir.path),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('checksum mismatch'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('error message includes expected and actual SHA-256 digests',
-        () async {
-      final onnxBytes = [1, 2, 3];
-      final configBytes = [4, 5, 6];
-      final spec = _makeSpec(
-        id: 'checksum-msg',
-        onnxBytes: onnxBytes,
-        configBytes: configBytes,
-      );
+    test(
+      'error message includes expected and actual SHA-256 digests',
+      () async {
+        final onnxBytes = [1, 2, 3];
+        final configBytes = [4, 5, 6];
+        final spec = _makeSpec(
+          id: 'checksum-msg',
+          onnxBytes: onnxBytes,
+          configBytes: configBytes,
+        );
 
-      final server = _FakeHttpServer(
-        responses: {
-          spec.files['onnx']!.url.toString(): [0xFF, 0xFF],
-          spec.files['config']!.url.toString(): configBytes,
-        },
-      );
+        final server = _FakeHttpServer(
+          responses: {
+            spec.files['onnx']!.url.toString(): [0xFF, 0xFF],
+            spec.files['config']!.url.toString(): configBytes,
+          },
+        );
 
-      final downloader = ModelDownloader(
-        httpClientFactory: () => server.client,
-      );
+        final downloader = ModelDownloader(
+          httpClientFactory: () => server.client,
+        );
 
-      await expectLater(
-        downloader.ensure(spec, cacheDir: tempDir.path),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            allOf([
-              contains('SHA-256'),
-              contains(spec.files['onnx']!.sha256),
-            ]),
+        await expectLater(
+          downloader.ensure(spec, cacheDir: tempDir.path),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf([
+                contains('SHA-256'),
+                contains(spec.files['onnx']!.sha256),
+              ]),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('deletes temp .part file after checksum mismatch', () async {
       final onnxBytes = [1, 2, 3];
@@ -625,43 +628,45 @@ void main() {
       expect(File('${modelDir.path}/config.json').existsSync(), isTrue);
     });
 
-    test('pre-existing .part file from a previous crash is overwritten',
-        () async {
-      final onnxBytes = [10, 20, 30];
-      final configBytes = [40, 50];
-      final spec = _makeSpec(
-        id: 'leftover-part',
-        onnxBytes: onnxBytes,
-        configBytes: configBytes,
-      );
+    test(
+      'pre-existing .part file from a previous crash is overwritten',
+      () async {
+        final onnxBytes = [10, 20, 30];
+        final configBytes = [40, 50];
+        final spec = _makeSpec(
+          id: 'leftover-part',
+          onnxBytes: onnxBytes,
+          configBytes: configBytes,
+        );
 
-      // Simulate a leftover .part file from a previous interrupted download.
-      final modelDir = Directory('${tempDir.path}/leftover-part');
-      await modelDir.create(recursive: true);
-      final stalePartFile = File('${modelDir.path}/model.onnx.part');
-      await stalePartFile.writeAsBytes([0xDE, 0xAD]);
+        // Simulate a leftover .part file from a previous interrupted download.
+        final modelDir = Directory('${tempDir.path}/leftover-part');
+        await modelDir.create(recursive: true);
+        final stalePartFile = File('${modelDir.path}/model.onnx.part');
+        await stalePartFile.writeAsBytes([0xDE, 0xAD]);
 
-      final server = _FakeHttpServer(
-        responses: {
-          spec.files['onnx']!.url.toString(): onnxBytes,
-          spec.files['config']!.url.toString(): configBytes,
-        },
-      );
+        final server = _FakeHttpServer(
+          responses: {
+            spec.files['onnx']!.url.toString(): onnxBytes,
+            spec.files['config']!.url.toString(): configBytes,
+          },
+        );
 
-      final downloader = ModelDownloader(
-        httpClientFactory: () => server.client,
-      );
+        final downloader = ModelDownloader(
+          httpClientFactory: () => server.client,
+        );
 
-      // The download should succeed, overwriting the stale .part file.
-      final resolved = await downloader.ensure(spec, cacheDir: tempDir.path);
+        // The download should succeed, overwriting the stale .part file.
+        final resolved = await downloader.ensure(spec, cacheDir: tempDir.path);
 
-      expect(
-        File(resolved.filePaths['onnx']!).readAsBytesSync(),
-        equals(onnxBytes),
-      );
-      // No .part file should remain.
-      expect(stalePartFile.existsSync(), isFalse);
-    });
+        expect(
+          File(resolved.filePaths['onnx']!).readAsBytesSync(),
+          equals(onnxBytes),
+        );
+        // No .part file should remain.
+        expect(stalePartFile.existsSync(), isFalse);
+      },
+    );
   });
 
   // ── Allowlist rejection ─────────────────────────────────────────────────────
@@ -786,10 +791,7 @@ void main() {
     });
 
     test('meta defaults to empty map', () {
-      const spec = ModelSpec(
-        id: 'no-meta',
-        files: {},
-      );
+      const spec = ModelSpec(id: 'no-meta', files: {});
 
       expect(spec.meta, isEmpty);
     });

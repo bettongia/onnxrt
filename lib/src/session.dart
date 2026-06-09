@@ -87,10 +87,14 @@ final class OnnxSession {
     final opts = options ?? const SessionOptions();
     return using((arena) {
       // ── Step 1: error-handling helpers ─────────────────────────────────────
-      final getErrorMessage =
-          ortSlotPtr<GetErrorMessageC>(api, 2).asFunction<GetErrorMessageDart>();
-      final releaseStatus =
-          ortSlotPtr<ReleaseStatusC>(api, 93).asFunction<ReleaseStatusDart>();
+      final getErrorMessage = ortSlotPtr<GetErrorMessageC>(
+        api,
+        2,
+      ).asFunction<GetErrorMessageDart>();
+      final releaseStatus = ortSlotPtr<ReleaseStatusC>(
+        api,
+        93,
+      ).asFunction<ReleaseStatusDart>();
 
       void check(Pointer<OrtStatus> status) {
         if (status == nullptr) return;
@@ -100,8 +104,10 @@ final class OnnxSession {
       }
 
       // ── Step 2: create ORT environment (slot 3: CreateEnv) ─────────────────
-      final createEnv =
-          ortSlotPtr<CreateEnvC>(api, 3).asFunction<CreateEnvDart>();
+      final createEnv = ortSlotPtr<CreateEnvC>(
+        api,
+        3,
+      ).asFunction<CreateEnvDart>();
       final envPtr = arena<Pointer<OrtEnv>>();
       check(
         createEnv(
@@ -113,27 +119,32 @@ final class OnnxSession {
       final env = envPtr.value;
 
       // ── Step 3: create session options (slot 10: CreateSessionOptions) ─────
-      final createOpts =
-          ortSlotPtr<CreateSessionOptionsC>(api, 10)
-              .asFunction<CreateSessionOptionsDart>();
+      final createOpts = ortSlotPtr<CreateSessionOptionsC>(
+        api,
+        10,
+      ).asFunction<CreateSessionOptionsDart>();
       final optsPtr = arena<Pointer<OrtSessionOptions>>();
       check(createOpts(optsPtr));
       final sessionOpts = optsPtr.value;
 
       // Apply thread-pool sizing from SessionOptions.
       // Defaulting to 1 preserves teardown-safe behaviour per Q6 in the plan.
-      final setIntra =
-          ortSlotPtr<SetIntraOpNumThreadsC>(api, 24)
-              .asFunction<SetIntraOpNumThreadsDart>();
-      final setInter =
-          ortSlotPtr<SetInterOpNumThreadsC>(api, 25)
-              .asFunction<SetInterOpNumThreadsDart>();
+      final setIntra = ortSlotPtr<SetIntraOpNumThreadsC>(
+        api,
+        24,
+      ).asFunction<SetIntraOpNumThreadsDart>();
+      final setInter = ortSlotPtr<SetInterOpNumThreadsC>(
+        api,
+        25,
+      ).asFunction<SetInterOpNumThreadsDart>();
       check(setIntra(sessionOpts, opts.intraOpNumThreads));
       check(setInter(sessionOpts, opts.interOpNumThreads));
 
       // ── Step 4: load model file (slot 7: CreateSession) ────────────────────
-      final createSession =
-          ortSlotPtr<CreateSessionC>(api, 7).asFunction<CreateSessionDart>();
+      final createSession = ortSlotPtr<CreateSessionC>(
+        api,
+        7,
+      ).asFunction<CreateSessionDart>();
       final sessPtr = arena<Pointer<OrtSession>>();
       check(
         createSession(
@@ -146,16 +157,18 @@ final class OnnxSession {
 
       // ── Step 5: create CPU memory info (slot 69: CreateCpuMemoryInfo) ──────
       // This allocator descriptor is reused for every input tensor in run().
-      final createMem =
-          ortSlotPtr<CreateMemoryInfoC>(api, 69)
-              .asFunction<CreateMemoryInfoDart>();
+      final createMem = ortSlotPtr<CreateMemoryInfoC>(
+        api,
+        69,
+      ).asFunction<CreateMemoryInfoDart>();
       final memPtr = arena<Pointer<OrtMemoryInfo>>();
       check(createMem(ortDeviceAllocator, ortMemTypeCpuInput, memPtr));
 
       // Release session options — no longer needed after CreateSession.
-      final releaseOpts =
-          ortSlotPtr<ReleaseSessionOptionsC>(api, 100)
-              .asFunction<ReleaseSessionOptionsDart>();
+      final releaseOpts = ortSlotPtr<ReleaseSessionOptionsC>(
+        api,
+        100,
+      ).asFunction<ReleaseSessionOptionsDart>();
       releaseOpts(sessionOpts);
 
       return OnnxSession._(sessPtr.value, memPtr.value, env, api);
@@ -187,11 +200,14 @@ final class OnnxSession {
   }) {
     return using((arena) {
       // ── Bind vtable slots used in this call ─────────────────────────────────
-      final getErrorMessage =
-          ortSlotPtr<GetErrorMessageC>(_api, 2)
-              .asFunction<GetErrorMessageDart>();
-      final releaseStatus =
-          ortSlotPtr<ReleaseStatusC>(_api, 93).asFunction<ReleaseStatusDart>();
+      final getErrorMessage = ortSlotPtr<GetErrorMessageC>(
+        _api,
+        2,
+      ).asFunction<GetErrorMessageDart>();
+      final releaseStatus = ortSlotPtr<ReleaseStatusC>(
+        _api,
+        93,
+      ).asFunction<ReleaseStatusDart>();
 
       void check(Pointer<OrtStatus> s) {
         if (s == nullptr) return;
@@ -200,26 +216,36 @@ final class OnnxSession {
         throw Exception('ONNX Runtime: $msg');
       }
 
-      final createTensor =
-          ortSlotPtr<CreateTensorC>(_api, 49).asFunction<CreateTensorDart>();
+      final createTensor = ortSlotPtr<CreateTensorC>(
+        _api,
+        49,
+      ).asFunction<CreateTensorDart>();
       final runFn = ortSlotPtr<RunC>(_api, 9).asFunction<RunDart>();
-      final getTensorData =
-          ortSlotPtr<GetTensorMutableDataC>(_api, 51)
-              .asFunction<GetTensorMutableDataDart>();
-      final releaseValue =
-          ortSlotPtr<ReleaseValueC>(_api, 96).asFunction<ReleaseValueDart>();
+      final getTensorData = ortSlotPtr<GetTensorMutableDataC>(
+        _api,
+        51,
+      ).asFunction<GetTensorMutableDataDart>();
+      final releaseValue = ortSlotPtr<ReleaseValueC>(
+        _api,
+        96,
+      ).asFunction<ReleaseValueDart>();
       // Output-shape readback slots (31/32/33 — added for generic API).
-      final getTypeShape =
-          ortSlotPtr<GetTensorTypeAndShapeInfoC>(_api, 31)
-              .asFunction<GetTensorTypeAndShapeInfoDart>();
-      final getDimCount =
-          ortSlotPtr<GetDimensionsCountC>(_api, 32)
-              .asFunction<GetDimensionsCountDart>();
-      final getDims =
-          ortSlotPtr<GetDimensionsC>(_api, 33).asFunction<GetDimensionsDart>();
-      final releaseTTASI =
-          ortSlotPtr<ReleaseTensorTypeAndShapeInfoC>(_api, 101)
-              .asFunction<ReleaseTensorTypeAndShapeInfoDart>();
+      final getTypeShape = ortSlotPtr<GetTensorTypeAndShapeInfoC>(
+        _api,
+        31,
+      ).asFunction<GetTensorTypeAndShapeInfoDart>();
+      final getDimCount = ortSlotPtr<GetDimensionsCountC>(
+        _api,
+        32,
+      ).asFunction<GetDimensionsCountDart>();
+      final getDims = ortSlotPtr<GetDimensionsC>(
+        _api,
+        33,
+      ).asFunction<GetDimensionsDart>();
+      final releaseTTASI = ortSlotPtr<ReleaseTensorTypeAndShapeInfoC>(
+        _api,
+        101,
+      ).asFunction<ReleaseTensorTypeAndShapeInfoDart>();
 
       final inputNames = inputs.keys.toList();
       final inputTensors = inputs.values.toList();
@@ -294,11 +320,13 @@ final class OnnxSession {
         final elementCount = shape.isEmpty ? 1 : shape.fold(1, (a, b) => a * b);
         final tensorData = _copyTensorData(rawPtr.value, elementCount);
 
-        results.add(OnnxTensor(
-          elementType: tensorData.$1,
-          shape: shape,
-          data: tensorData.$2,
-        ));
+        results.add(
+          OnnxTensor(
+            elementType: tensorData.$1,
+            shape: shape,
+            data: tensorData.$2,
+          ),
+        );
 
         releaseValue(outVal);
       }
@@ -318,13 +346,18 @@ final class OnnxSession {
   ///
   /// Must be called exactly once. After [dispose], [run] must not be called.
   void dispose() {
-    final releaseSession =
-        ortSlotPtr<ReleaseSessionC>(_api, 95).asFunction<ReleaseSessionDart>();
-    final releaseMem =
-        ortSlotPtr<ReleaseMemoryInfoC>(_api, 94)
-            .asFunction<ReleaseMemoryInfoDart>();
-    final releaseEnv =
-        ortSlotPtr<ReleaseEnvC>(_api, 92).asFunction<ReleaseEnvDart>();
+    final releaseSession = ortSlotPtr<ReleaseSessionC>(
+      _api,
+      95,
+    ).asFunction<ReleaseSessionDart>();
+    final releaseMem = ortSlotPtr<ReleaseMemoryInfoC>(
+      _api,
+      94,
+    ).asFunction<ReleaseMemoryInfoDart>();
+    final releaseEnv = ortSlotPtr<ReleaseEnvC>(
+      _api,
+      92,
+    ).asFunction<ReleaseEnvDart>();
 
     releaseSession(_session);
     releaseMem(_memInfo);
@@ -350,10 +383,7 @@ final class OnnxSession {
 
     // Allocate native memory and copy tensor data into it.
     final nativeData = arena<Uint8>(byteCount);
-    final srcBytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      byteCount,
-    );
+    final srcBytes = data.buffer.asUint8List(data.offsetInBytes, byteCount);
     for (var b = 0; b < byteCount; b++) {
       nativeData[b] = srcBytes[b];
     }

@@ -66,12 +66,17 @@ List<int> _tag(int fieldNumber, int wireType) =>
     _varint((fieldNumber << 3) | wireType);
 
 /// Wire type 0 = varint.
-List<int> _varintField(int fieldNumber, int value) =>
-    [..._tag(fieldNumber, 0), ..._varint(value)];
+List<int> _varintField(int fieldNumber, int value) => [
+  ..._tag(fieldNumber, 0),
+  ..._varint(value),
+];
 
 /// Wire type 2 = length-delimited (bytes, string, embedded message).
-List<int> _lenField(int fieldNumber, List<int> data) =>
-    [..._tag(fieldNumber, 2), ..._varint(data.length), ...data];
+List<int> _lenField(int fieldNumber, List<int> data) => [
+  ..._tag(fieldNumber, 2),
+  ..._varint(data.length),
+  ...data,
+];
 
 /// Encodes a UTF-8 string as a length-delimited field.
 List<int> _stringField(int fieldNumber, String value) {
@@ -112,10 +117,7 @@ List<int> _typeProto(List<int> shape) {
 ///
 /// ValueInfoProto: field 1 = name (string), field 2 = type (TypeProto)
 List<int> _valueInfo(String name, List<int> shape) {
-  return [
-    ..._stringField(1, name),
-    ..._lenField(2, _typeProto(shape)),
-  ];
+  return [..._stringField(1, name), ..._lenField(2, _typeProto(shape))];
 }
 
 /// Builds a NodeProto for the Identity op.
@@ -196,11 +198,7 @@ void main() {
     shape: [1, 4],
   );
 
-  final model = _modelProto(
-    irVersion: 8,
-    opsetVersion: 17,
-    graph: graph,
-  );
+  final model = _modelProto(irVersion: 8, opsetVersion: 17, graph: graph);
 
   final outputPath = 'test/fixtures/identity_float32.onnx';
   File(outputPath).writeAsBytesSync(Uint8List.fromList(model));
