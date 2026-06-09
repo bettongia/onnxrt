@@ -579,7 +579,9 @@ List<int> _extractFromZip(
   final entryCount = _readUint16LE(bytes, eocdOffset + 10);
 
   // Walk central directory entries to find the target file.
+  // Collect all names so we can include them in the not-found error message.
   var pos = cdOffset;
+  final allNames = <String>[];
   for (var i = 0; i < entryCount && pos < cdOffset + cdSize; i++) {
     // Central directory file header signature: 0x02014b50
     if (_readUint32LE(bytes, pos) != 0x02014b50) {
@@ -597,6 +599,7 @@ List<int> _extractFromZip(
     final fileName = utf8.decode(bytes.sublist(pos + 46, nameEnd));
     pos += 46 + fileNameLen + extraLen + commentLen;
 
+    allNames.add(fileName);
     if (fileName != innerPath) continue;
 
     // Found — read the local file header to get to the actual data.
@@ -621,7 +624,10 @@ List<int> _extractFromZip(
     );
   }
 
-  throw StateError('Entry "$innerPath" not found in $archiveName');
+  throw StateError(
+    'Entry "$innerPath" not found in $archiveName.\n'
+    'Available entries:\n${allNames.map((n) => '  $n').join('\n')}',
+  );
 }
 
 /// Extracts [innerPath] from a `.tgz` (gzip-compressed TAR) [archiveBytes].
