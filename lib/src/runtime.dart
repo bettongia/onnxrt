@@ -148,18 +148,21 @@ final class OnnxRuntime {
 
   /// Opens the ORT [DynamicLibrary] for the current platform.
   ///
-  /// The library path/name matches what the build hook stages:
-  /// - macOS: `libonnxruntime.{version}.dylib`
-  /// - Linux: `libonnxruntime.so.{version}`
-  /// - Windows: `onnxruntime.dll`
-  /// - Android: `libonnxruntime.so` (resolved by dynamic linker from APK)
-  /// - iOS: ORT is statically linked via the `betto_onnxrt_ios` SPM plugin
-  ///   shim; the build hook does not stage a CodeAsset on iOS.
+  /// **iOS** — ORT is statically linked into the host app by the
+  /// `betto_onnxrt_ios` Flutter plugin, which declares an SPM dependency on
+  /// `microsoft/onnxruntime-swift-package-manager` (`onnxruntime-c`). Xcode
+  /// pulls the XCFramework via SPM and statically links it at build time. The
+  /// build hook does **not** stage a `CodeAsset` on iOS; the native-assets
+  /// manifest is not involved. [DynamicLibrary.process] is used instead,
+  /// resolving ORT C API symbols from the process image.
   ///
-  /// At runtime Dart's native-assets manifest maps the asset ID
-  /// `package:betto_onnxrt/src/ort_library.dart` to the actual bundled file.
-  /// We use [DynamicLibrary.process] on iOS (where ORT is statically linked
-  /// into the app binary by Xcode via SPM) and a name-based open elsewhere.
+  /// **Android** — `libonnxruntime.so` is bundled in the APK `lib/{abi}/`
+  /// directory by the build hook and resolved by name via the dynamic linker.
+  ///
+  /// **Desktop (macOS, Linux, Windows)** — the build hook stages the library
+  /// adjacent to the compiled executable. The native-assets framework maps the
+  /// asset ID `package:betto_onnxrt/src/ort_library.dart` to the bundled file
+  /// at build time; at runtime the library is opened by name.
   static DynamicLibrary _openLibrary() {
     if (Platform.isIOS) {
       // ORT is statically linked into the app binary by the betto_onnxrt_ios

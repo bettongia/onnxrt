@@ -93,8 +93,23 @@ container_test:
 
 # END: Container tests
 
-pre_commit: format_check analyze license_check test
+pre_commit: format_check analyze license_check test check_ios_version
 .PHONY: pre_commit
+
+# Assert that the SPM version pin in packages/betto_onnxrt_ios/ios/Package.swift
+# matches VERSION_ONNX (without the leading "v").
+# Example: VERSION_ONNX=v1.22.0 → expected SPM pin "1.22.0".
+# Run manually: make check_ios_version
+check_ios_version:
+	@ORT_VER=$$(cat VERSION_ONNX | tr -d '[:space:]' | sed 's/^v//'); \
+	SPM_VER=$$(grep 'from:' packages/betto_onnxrt_ios/ios/Package.swift | grep -o '"[0-9][^"]*"' | tr -d '"'); \
+	if [ "$$ORT_VER" != "$$SPM_VER" ]; then \
+	  echo "ERROR: VERSION_ONNX ($$ORT_VER) does not match Package.swift from: ($$SPM_VER)"; \
+	  echo "       Update packages/betto_onnxrt_ios/ios/Package.swift to from: \"$$ORT_VER\""; \
+	  exit 1; \
+	fi; \
+	echo "check_ios_version: OK ($$ORT_VER)"
+.PHONY: check_ios_version
 
 format:
 	dart format lib/ test/ hook/ tool/

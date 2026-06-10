@@ -12,3 +12,4 @@ analyzer:
   exclude:
     - lib/src/generated/**
     - integration_test_app/**
+    - packages/**
