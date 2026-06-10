@@ -2,7 +2,7 @@
 
 **Status**: Complete
 
-**PR link**: _(pending)_
+**PR link**: _(committed directly to main; commits 69309e5–62c01f8)_
 
 ## Problem statement
 
