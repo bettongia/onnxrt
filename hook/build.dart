@@ -37,19 +37,22 @@
 ///
 /// ## iOS
 ///
-/// The iOS XCFramework is NOT in the ORT GitHub Releases. It is distributed
-/// via Microsoft's pod archive CDN:
-///   `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
+/// iOS is NOT supported via the native-assets hook. The ORT iOS XCFramework
+/// (`pod-archive-onnxruntime-c-{ver}.zip`) ships static `.a` archives:
+///   - `ios-arm64/onnxruntime.a`                   — physical device
+///   - `ios-arm64_x86_64-simulator/onnxruntime.a`  — simulator
 ///
-/// The ZIP contains `onnxruntime.xcframework/` with two slices:
-/// - `ios-arm64/onnxruntime.framework/onnxruntime` — physical device
-/// - `ios-arm64_x86_64-simulator/onnxruntime.framework/onnxruntime` — sim
+/// Flutter's iOS native-assets system enforces `linkModePreference = dynamic`
+/// and rejects both `StaticLinking` and `DynamicLoadingBundled` modes when the
+/// artifact is an `ar archive` rather than a dylib. Both modes were tried and
+/// rejected during the Q1 2026 spike (see `plan_betto_onnxrt_extraction.md`).
 ///
-/// The hook extracts the appropriate Mach-O binary (no extension — standard
-/// framework bundle convention) and emits it as a `CodeAsset` with
-/// `DynamicLoadingBundled`. Flutter's iOS build system embeds it in the app
-/// bundle and adds it to the link phase so it is present in the process image
-/// at launch, which is why `runtime.dart` uses `DynamicLibrary.process()`.
+/// iOS support requires the `betto_onnxrt_ios` Flutter plugin, which declares
+/// an SPM dependency on `microsoft/onnxruntime-swift-package-manager`
+/// (`onnxruntime-c`), causing Xcode to statically link ORT into the host app.
+/// `OnnxRuntime.load()` then uses `DynamicLibrary.process()` to resolve ORT
+/// C API symbols from the process image. `_buildIos` logs a warning and emits
+/// no CodeAsset.
 ///
 /// ## Provenance waiver
 ///
