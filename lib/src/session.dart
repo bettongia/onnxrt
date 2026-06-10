@@ -54,8 +54,8 @@ import 'tensor.dart';
 /// `List<String>` of requested output names. It returns a `List<OnnxTensor>`
 /// in the same order as [outputNames]. Each output tensor's [OnnxTensor.shape]
 /// is read from the native OrtValue using the output-shape-readback slots
-/// (31 = GetTensorTypeAndShapeInfo, 32 = GetDimensionsCount,
-/// 33 = GetDimensions) added to `ort_api.dart`.
+/// (65 = GetTensorTypeAndShape, 61 = GetDimensionsCount, 62 = GetDimensions)
+/// in `ort_api.dart`.
 final class OnnxSession {
   final Pointer<OrtSession> _session;
   final Pointer<OrtMemoryInfo> _memInfo;
@@ -68,20 +68,19 @@ final class OnnxSession {
 
   // ── Factory ────────────────────────────────────────────────────────────────
 
-  /// Opens [modelPath] and creates an ORT inference session.
+  /// Creates an ORT inference session from [modelBytes].
   ///
   /// [api] must be the OrtApi vtable pointer from [OnnxRuntime.ortApi].
-  /// [modelPath] must be the absolute path to a valid `.onnx` file.
+  /// [modelBytes] must be the binary content of a valid `.onnx` file.
   /// [options] controls thread-pool sizing (defaults: both counts = 1).
   ///
   /// Throws [Exception] if the ORT API version is incompatible or the model
-  /// file cannot be loaded.
+  /// cannot be parsed.
   ///
-  /// Internal — callers should use [OnnxRuntime.createSession] or
-  /// [OnnxRuntime.createSessionFromFile].
-  static OnnxSession create(
+  /// Internal — callers should use [OnnxRuntime.createSession].
+  static OnnxSession createFromBytes(
     Pointer<Void> api,
-    String modelPath, {
+    Uint8List modelBytes, {
     SessionOptions? options,
   }) {
     final opts = options ?? const SessionOptions();
@@ -95,11 +94,24 @@ final class OnnxSession {
         api,
         93,
       ).asFunction<ReleaseStatusDart>();
+      final releaseEnv = ortSlotPtr<ReleaseEnvC>(
+        api,
+        92,
+      ).asFunction<ReleaseEnvDart>();
+      final releaseOpts = ortSlotPtr<ReleaseSessionOptionsC>(
+        api,
+        100,
+      ).asFunction<ReleaseSessionOptionsDart>();
+
+      var env = nullptr.cast<OrtEnv>();
+      var sessionOpts = nullptr.cast<OrtSessionOptions>();
 
       void check(Pointer<OrtStatus> status) {
         if (status == nullptr) return;
         final msg = getErrorMessage(status).toDartString();
         releaseStatus(status);
+        if (sessionOpts != nullptr) releaseOpts(sessionOpts);
+        if (env != nullptr) releaseEnv(env);
         throw Exception('ONNX Runtime: $msg');
       }
 
@@ -116,7 +128,7 @@ final class OnnxSession {
           envPtr,
         ),
       );
-      final env = envPtr.value;
+      env = envPtr.value;
 
       // ── Step 3: create session options (slot 10: CreateSessionOptions) ─────
       final createOpts = ortSlotPtr<CreateSessionOptionsC>(
@@ -125,10 +137,132 @@ final class OnnxSession {
       ).asFunction<CreateSessionOptionsDart>();
       final optsPtr = arena<Pointer<OrtSessionOptions>>();
       check(createOpts(optsPtr));
-      final sessionOpts = optsPtr.value;
+      sessionOpts = optsPtr.value;
 
       // Apply thread-pool sizing from SessionOptions.
       // Defaulting to 1 preserves teardown-safe behaviour per Q6 in the plan.
+      final setIntra = ortSlotPtr<SetIntraOpNumThreadsC>(
+        api,
+        24,
+      ).asFunction<SetIntraOpNumThreadsDart>();
+      final setInter = ortSlotPtr<SetInterOpNumThreadsC>(
+        api,
+        25,
+      ).asFunction<SetInterOpNumThreadsDart>();
+      check(setIntra(sessionOpts, opts.intraOpNumThreads));
+      check(setInter(sessionOpts, opts.interOpNumThreads));
+
+      // ── Step 4: load model from bytes (slot 8: CreateSessionFromArray) ─────
+      // Using CreateSessionFromArray avoids writing a temp file and prevents
+      // any platform-specific issues with file lifecycle vs. ORT model loading
+      // (e.g. lazy mmap on Android).
+      final createSessionFromArray = ortSlotPtr<CreateSessionFromArrayC>(
+        api,
+        8,
+      ).asFunction<CreateSessionFromArrayDart>();
+      final nativeBytes = arena<Uint8>(modelBytes.length);
+      for (var i = 0; i < modelBytes.length; i++) {
+        nativeBytes[i] = modelBytes[i];
+      }
+      final sessPtr = arena<Pointer<OrtSession>>();
+      check(
+        createSessionFromArray(
+          env,
+          nativeBytes.cast<Void>(),
+          modelBytes.length,
+          sessionOpts,
+          sessPtr,
+        ),
+      );
+
+      // ── Step 5: create CPU memory info (slot 69: CreateCpuMemoryInfo) ──────
+      // This allocator descriptor is reused for every input tensor in run().
+      final createMem = ortSlotPtr<CreateMemoryInfoC>(
+        api,
+        69,
+      ).asFunction<CreateMemoryInfoDart>();
+      final memPtr = arena<Pointer<OrtMemoryInfo>>();
+      check(createMem(ortDeviceAllocator, ortMemTypeCpuInput, memPtr));
+
+      // Release session options — no longer needed after CreateSessionFromArray.
+      releaseOpts(sessionOpts);
+      sessionOpts = nullptr.cast<OrtSessionOptions>();
+
+      return OnnxSession._(sessPtr.value, memPtr.value, env, api);
+    });
+  }
+
+  /// Opens [modelPath] and creates an ORT inference session.
+  ///
+  /// [api] must be the OrtApi vtable pointer from [OnnxRuntime.ortApi].
+  /// [modelPath] must be the absolute path to a valid `.onnx` file.
+  /// [options] controls thread-pool sizing (defaults: both counts = 1).
+  ///
+  /// Throws [Exception] if the ORT API version is incompatible or the model
+  /// file cannot be loaded.
+  ///
+  /// Internal — callers should use [OnnxRuntime.createSessionFromFile].
+  static OnnxSession create(
+    Pointer<Void> api,
+    String modelPath, {
+    SessionOptions? options,
+  }) {
+    final opts = options ?? const SessionOptions();
+    return using((arena) {
+      // ── Step 1: error-handling helpers ─────────────────────────────────────
+      final getErrorMessage = ortSlotPtr<GetErrorMessageC>(
+        api,
+        2,
+      ).asFunction<GetErrorMessageDart>();
+      final releaseStatus = ortSlotPtr<ReleaseStatusC>(
+        api,
+        93,
+      ).asFunction<ReleaseStatusDart>();
+      final releaseEnv = ortSlotPtr<ReleaseEnvC>(
+        api,
+        92,
+      ).asFunction<ReleaseEnvDart>();
+      final releaseOpts = ortSlotPtr<ReleaseSessionOptionsC>(
+        api,
+        100,
+      ).asFunction<ReleaseSessionOptionsDart>();
+
+      var env = nullptr.cast<OrtEnv>();
+      var sessionOpts = nullptr.cast<OrtSessionOptions>();
+
+      void check(Pointer<OrtStatus> status) {
+        if (status == nullptr) return;
+        final msg = getErrorMessage(status).toDartString();
+        releaseStatus(status);
+        if (sessionOpts != nullptr) releaseOpts(sessionOpts);
+        if (env != nullptr) releaseEnv(env);
+        throw Exception('ONNX Runtime: $msg');
+      }
+
+      // ── Step 2: create ORT environment (slot 3: CreateEnv) ─────────────────
+      final createEnv = ortSlotPtr<CreateEnvC>(
+        api,
+        3,
+      ).asFunction<CreateEnvDart>();
+      final envPtr = arena<Pointer<OrtEnv>>();
+      check(
+        createEnv(
+          ortLoggingWarning,
+          'betto_onnxrt'.toNativeUtf8(allocator: arena),
+          envPtr,
+        ),
+      );
+      env = envPtr.value;
+
+      // ── Step 3: create session options (slot 10: CreateSessionOptions) ─────
+      final createOpts = ortSlotPtr<CreateSessionOptionsC>(
+        api,
+        10,
+      ).asFunction<CreateSessionOptionsDart>();
+      final optsPtr = arena<Pointer<OrtSessionOptions>>();
+      check(createOpts(optsPtr));
+      sessionOpts = optsPtr.value;
+
       final setIntra = ortSlotPtr<SetIntraOpNumThreadsC>(
         api,
         24,
@@ -156,7 +290,6 @@ final class OnnxSession {
       );
 
       // ── Step 5: create CPU memory info (slot 69: CreateCpuMemoryInfo) ──────
-      // This allocator descriptor is reused for every input tensor in run().
       final createMem = ortSlotPtr<CreateMemoryInfoC>(
         api,
         69,
@@ -164,12 +297,8 @@ final class OnnxSession {
       final memPtr = arena<Pointer<OrtMemoryInfo>>();
       check(createMem(ortDeviceAllocator, ortMemTypeCpuInput, memPtr));
 
-      // Release session options — no longer needed after CreateSession.
-      final releaseOpts = ortSlotPtr<ReleaseSessionOptionsC>(
-        api,
-        100,
-      ).asFunction<ReleaseSessionOptionsDart>();
       releaseOpts(sessionOpts);
+      sessionOpts = nullptr.cast<OrtSessionOptions>();
 
       return OnnxSession._(sessPtr.value, memPtr.value, env, api);
     });
@@ -229,22 +358,22 @@ final class OnnxSession {
         _api,
         96,
       ).asFunction<ReleaseValueDart>();
-      // Output-shape readback slots (31/32/33 — added for generic API).
-      final getTypeShape = ortSlotPtr<GetTensorTypeAndShapeInfoC>(
+      // Output-shape readback slots (verified against ORT v1.22.0 header).
+      final getTypeShape = ortSlotPtr<GetTensorTypeAndShapeC>(
         _api,
-        31,
-      ).asFunction<GetTensorTypeAndShapeInfoDart>();
+        65,
+      ).asFunction<GetTensorTypeAndShapeDart>();
       final getDimCount = ortSlotPtr<GetDimensionsCountC>(
         _api,
-        32,
+        61,
       ).asFunction<GetDimensionsCountDart>();
       final getDims = ortSlotPtr<GetDimensionsC>(
         _api,
-        33,
+        62,
       ).asFunction<GetDimensionsDart>();
       final releaseTTASI = ortSlotPtr<ReleaseTensorTypeAndShapeInfoC>(
         _api,
-        101,
+        99,
       ).asFunction<ReleaseTensorTypeAndShapeInfoDart>();
 
       final inputNames = inputs.keys.toList();

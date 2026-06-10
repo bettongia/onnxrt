@@ -111,7 +111,23 @@ typedef CreateSessionDart =
       Pointer<Pointer<OrtSession>>,
     );
 
-// slot 8: CreateSessionFromArray  [unused]
+// slot 8: OrtStatus* CreateSessionFromArray(const OrtEnv*, const void*, size_t, const OrtSessionOptions*, OrtSession**)
+typedef CreateSessionFromArrayC =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtEnv>,
+      Pointer<Void>,
+      Size,
+      Pointer<OrtSessionOptions>,
+      Pointer<Pointer<OrtSession>>,
+    );
+typedef CreateSessionFromArrayDart =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtEnv>,
+      Pointer<Void>,
+      int,
+      Pointer<OrtSessionOptions>,
+      Pointer<Pointer<OrtSession>>,
+    );
 
 // slot 9: OrtStatus* Run(OrtSession*, const OrtRunOptions*, const char* const*, const OrtValue* const*, size_t, const char* const*, size_t, OrtValue**)
 typedef RunC =
@@ -161,53 +177,10 @@ typedef SetInterOpNumThreadsDart =
 
 // slots 26–30: various functions we don't use
 
-// ── Output-shape readback slots (added for generic OnnxSession) ──────────────
-
-// slot 31: OrtStatus* GetTensorTypeAndShapeInfo(const OrtValue*, OrtTensorTypeAndShapeInfo**)
-// Obtains the type-and-shape info handle for a tensor OrtValue.
-typedef GetTensorTypeAndShapeInfoC =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtValue>,
-      Pointer<Pointer<OrtTensorTypeAndShapeInfo>>,
-    );
-typedef GetTensorTypeAndShapeInfoDart =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtValue>,
-      Pointer<Pointer<OrtTensorTypeAndShapeInfo>>,
-    );
-
-// slot 32: OrtStatus* GetDimensionsCount(const OrtTensorTypeAndShapeInfo*, size_t*)
-// Returns the number of dimensions of the tensor.
-typedef GetDimensionsCountC =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtTensorTypeAndShapeInfo>,
-      Pointer<Size>,
-    );
-typedef GetDimensionsCountDart =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtTensorTypeAndShapeInfo>,
-      Pointer<Size>,
-    );
-
-// slot 33: OrtStatus* GetDimensions(const OrtTensorTypeAndShapeInfo*, int64_t* dim_values, size_t dim_values_length)
-// Fills [dim_values] with the size of each dimension.
-typedef GetDimensionsC =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtTensorTypeAndShapeInfo>,
-      Pointer<Int64>,
-      Size,
-    );
-typedef GetDimensionsDart =
-    Pointer<OrtStatus> Function(
-      Pointer<OrtTensorTypeAndShapeInfo>,
-      Pointer<Int64>,
-      int,
-    );
-
-// slot 34: GetSymbolicDimensions  [unused]
-// slot 35: GetTensorElementType  [unused — we use the type from OnnxElementType]
-
-// slots 36–48: various functions we don't use
+// slots 31–48: session query, run-options, tensor creation helpers we don't use
+// (slot 31: SessionGetOutputCount, 32: SessionGetOverridableInitializerCount,
+//  33: SessionGetInputTypeInfo, 34–38: more session query, 39–47: RunOptions,
+//  48: CreateTensorAsOrtValue)
 
 // slot 49: OrtStatus* CreateTensorWithDataAsOrtValue(const OrtMemoryInfo*, void*, size_t, const int64_t*, size_t, ONNXTensorElementDataType, OrtValue**)
 typedef CreateTensorC =
@@ -239,7 +212,51 @@ typedef GetTensorMutableDataC =
 typedef GetTensorMutableDataDart =
     Pointer<OrtStatus> Function(Pointer<OrtValue>, Pointer<Pointer<Void>>);
 
-// slots 52–68: various functions we don't use
+// slots 52–60: FillStringTensor, GetStringTensorDataLength, GetStringTensorContent,
+//              CastTypeInfoToTensorInfo, GetOnnxTypeFromTypeInfo, CreateTensorTypeAndShapeInfo,
+//              SetTensorElementType, SetDimensions, GetTensorElementType  [all unused]
+
+// slot 61: OrtStatus* GetDimensionsCount(const OrtTensorTypeAndShapeInfo*, size_t*)
+typedef GetDimensionsCountC =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Size>,
+    );
+typedef GetDimensionsCountDart =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Size>,
+    );
+
+// slot 62: OrtStatus* GetDimensions(const OrtTensorTypeAndShapeInfo*, int64_t*, size_t)
+typedef GetDimensionsC =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Int64>,
+      Size,
+    );
+typedef GetDimensionsDart =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Int64>,
+      int,
+    );
+
+// slots 63–64: GetSymbolicDimensions, GetTensorShapeElementCount  [unused]
+
+// slot 65: OrtStatus* GetTensorTypeAndShape(const OrtValue*, OrtTensorTypeAndShapeInfo**)
+typedef GetTensorTypeAndShapeC =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtValue>,
+      Pointer<Pointer<OrtTensorTypeAndShapeInfo>>,
+    );
+typedef GetTensorTypeAndShapeDart =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtValue>,
+      Pointer<Pointer<OrtTensorTypeAndShapeInfo>>,
+    );
+
+// slots 66–68: GetTypeInfo, GetValueType, CreateMemoryInfo  [unused]
 
 // slot 69: OrtStatus* CreateCpuMemoryInfo(enum OrtAllocatorType, enum OrtMemType, OrtMemoryInfo**)
 typedef CreateMemoryInfoC =
@@ -273,16 +290,17 @@ typedef ReleaseValueDart = void Function(Pointer<OrtValue>);
 // slot 97: ReleaseRunOptions  [unused]
 // slots 98–99: various functions we don't use
 
-// slot 100: void ReleaseSessionOptions(OrtSessionOptions*)
-typedef ReleaseSessionOptionsC = Void Function(Pointer<OrtSessionOptions>);
-typedef ReleaseSessionOptionsDart = void Function(Pointer<OrtSessionOptions>);
-
-// slot 101: ReleaseTensorTypeAndShapeInfo — note: OrtTensorTypeAndShapeInfo is
-// released differently; call GetTensorTypeAndShapeInfo, use it, then Release.
+// slot 99: void ReleaseTensorTypeAndShapeInfo(OrtTensorTypeAndShapeInfo*)
 typedef ReleaseTensorTypeAndShapeInfoC =
     Void Function(Pointer<OrtTensorTypeAndShapeInfo>);
 typedef ReleaseTensorTypeAndShapeInfoDart =
     void Function(Pointer<OrtTensorTypeAndShapeInfo>);
+
+// slot 100: void ReleaseSessionOptions(OrtSessionOptions*)
+typedef ReleaseSessionOptionsC = Void Function(Pointer<OrtSessionOptions>);
+typedef ReleaseSessionOptionsDart = void Function(Pointer<OrtSessionOptions>);
+
+// slot 101: ReleaseCustomOpDomain  [unused]
 
 // ── ONNX tensor element type constants ───────────────────────────────────────
 //

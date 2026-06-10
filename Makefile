@@ -7,7 +7,8 @@ export EMULATOR_IOS_RUNTIME ?= iOS26.5
 # Android emulator device ID — typically emulator-5554 when one emulator is
 # running. arm64-v8a is the default ABI on Apple Silicon Macs (native speed);
 # x86_64 emulators can be used but run under translation.
-export EMULATOR_ANDROID ?= emulator-5554
+export ADB_BINARY_PATH ?= ~/Library/Android/sdk/platform-tools
+export EMULATOR_ANDROID ?= android-emulator
 export EMULATOR_ANDROID_DEVICE ?= pixel_9
 export EMULATOR_ANDROID_ABI ?= arm64-v8a
 
@@ -57,12 +58,15 @@ ios_test:
 android_test:
 	cd integration_test_app && \
 	  flutter pub get && \
-	  flutter test integration_test/onnxrt_test.dart --device-id $(EMULATOR_ANDROID)
+	  flutter emulators --launch $(EMULATOR_ANDROID) ||true && \
+	  $(ADB_BINARY_PATH)/adb wait-for-device && \
+	  flutter test integration_test/onnxrt_test.dart --device-id emulator-5554
 .PHONY: android_test
 
 # END: Primary tasks
 
 # START: Mobile emulators
+emulators_stop: emulators_stop_android emulators_stop_ios
 
 emulators_stop_ios:
 	xcrun simctl shutdown $(EMULATOR_IOS) || true
@@ -73,7 +77,7 @@ emulator_ios_create:
 .PHONY: emulator_ios_create
 
 emulators_stop_android:
-	adb -s $(EMULATOR_ANDROID) emu kill || true
+	$(ADB_BINARY_PATH)/adb emu kill || true
 .PHONY: emulators_stop_android
 
 emulator_android_create:

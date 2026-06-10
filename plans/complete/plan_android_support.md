@@ -191,11 +191,11 @@ The developer must have an Android emulator running before invoking the target
   (default: `pixel_9` / `arm64-v8a`). Q2 resolved: default ABI is `arm64-v8a`
   (native speed on Apple Silicon; most common physical device ABI)._
 - [x] Add `emulators_stop_android` / `emulator_android_create` helper targets if needed
-- [ ] Run `make android_test` on an arm64-v8a emulator; confirm hook downloads
+- [x] Run `make android_test` on an arm64-v8a emulator; confirm hook downloads
   the AAR, extracts `jni/arm64-v8a/libonnxruntime.so`, and the integration
   test passes
-  _Note: This step is developer-run (requires a running emulator). Not executable
-  in the automated suite. See release checklist._
+  _Result: All 11 integration tests passed. Three bugs were found and fixed
+  during testing — see "Post-implementation fixes" in Summary._
 
 ### Phase 3 — Documentation
 
@@ -242,11 +242,35 @@ The developer must have an Android emulator running before invoking the target
   filename key — this avoids ambiguity since each ABI has a distinct digest.
   `_buildAndroid` was updated accordingly.
 
-- **Known gaps / follow-on items**: The `make android_test` step (Phase 2,
-  final checklist item) is developer-run and requires a running arm64-v8a
-  emulator. It cannot be automated in CI (consistent with `ios_test`). Desktop
-  and iOS SHA-256 manifest entries remain all-zeros placeholders pending
-  `TODO(betto_onnxrt#2)`.
+- **Known gaps / follow-on items**: Desktop and iOS SHA-256 manifest entries
+  remain all-zeros placeholders pending `TODO(betto_onnxrt#2)`.
+
+- **Post-implementation fixes** (found during `make android_test` run):
+
+  1. **Wrong ONNX protobuf field numbers** in `tool/generate_test_fixture.dart`:
+     `graph` was encoded at ModelProto field 8; `opset_import` at field 2. Correct
+     mapping is `graph=7, opset_import=8`. ORT's `has_graph()` checks field 7 and
+     always returned false → "ModelProto does not have a graph". Fixed and both
+     fixture files (`test/fixtures/identity_float32.onnx`,
+     `integration_test_app/assets/identity_float32.onnx`) regenerated.
+
+  2. **Wrong ORT vtable slot numbers** in `lib/src/ort_api.dart` and
+     `lib/src/session.dart`: `GetTensorTypeAndShape` was at slot 31 (correct: 65),
+     `GetDimensionsCount` at 32 (correct: 61), `GetDimensions` at 33 (correct: 62),
+     `ReleaseTensorTypeAndShapeInfo` at 101 (correct: 99). Slots 31–33 are
+     session-query functions — calling them with tensor-info pointer types caused a
+     SIGSEGV in `tearDown`, explaining why tests after the first `run()` failure
+     "did not complete". All corrected against the ORT v1.22.0 `onnxruntime_c_api.h`
+     header.
+
+  3. **Temp-file model loading** in `lib/src/runtime.dart` and
+     `lib/src/session.dart`: `createSession` wrote model bytes to a temp file and
+     deleted it in a `finally` block. Android ORT defers model loading until the
+     first `Run` call (lazy mmap), so the file was already deleted when `Run` was
+     invoked → "Model was not loaded". Fixed by switching to `CreateSessionFromArray`
+     (slot 8), which passes model bytes directly to ORT in native memory with no
+     file involved. Also fixed a resource leak where a failed `CreateSession` would
+     leave `OrtEnv` and `OrtSessionOptions` unreleased.
 
 ## Reviews
 

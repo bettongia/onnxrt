@@ -23,6 +23,7 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'generated/versions.g.dart';
 import 'ort_api.dart';
 import 'session.dart';
 import 'tensor.dart';
@@ -108,26 +109,14 @@ final class OnnxRuntime {
   /// Creates an [OnnxSession] by loading a model from [modelBytes].
   ///
   /// [modelBytes] must contain the binary content of a valid `.onnx` model
-  /// file. The bytes are written to a temporary file, the session is opened
-  /// from that file, and the temporary file is deleted before returning.
+  /// file. The bytes are passed directly to ORT via `CreateSessionFromArray`
+  /// (slot 8), avoiding any temporary file.
   ///
   /// [options] controls thread-pool sizing (defaults: single-threaded).
   ///
   /// Throws [Exception] if the model is invalid or cannot be loaded.
   OnnxSession createSession(Uint8List modelBytes, {SessionOptions? options}) {
-    // ORT's primary session-creation path (slot 7, CreateSession) takes a
-    // file path. We write the model to a temp file, open a session, then
-    // delete the temp file. The session retains everything it needs in memory
-    // after CreateSession returns, so deleting the file is safe.
-    final tmpPath =
-        '${Directory.systemTemp.path}'
-        '/betto_onnxrt_${DateTime.now().microsecondsSinceEpoch}.onnx';
-    final tmpFile = File(tmpPath)..writeAsBytesSync(modelBytes, flush: true);
-    try {
-      return OnnxSession.create(ortApi, tmpPath, options: options);
-    } finally {
-      tmpFile.deleteSync();
-    }
+    return OnnxSession.createFromBytes(ortApi, modelBytes, options: options);
   }
 
   /// Creates an [OnnxSession] from an ONNX model file at [modelPath].
@@ -188,11 +177,17 @@ final class OnnxRuntime {
     // known relative location. We open it via the asset name registered by
     // the hook.
     //
-    // TODO(betto_onnxrt#1): Replace with DynamicLibrary.open(assetId) once
-    // the Dart SDK supports asset-ID-based opens directly. Until then, the
-    // platform-specific filename is used as a convention that matches what
-    // the hook stages.
-    if (Platform.isMacOS) return DynamicLibrary.open('libonnxruntime.dylib');
+    // macOS: the Flutter build system wraps DynamicLoadingBundled dylibs in
+    // versioned .framework bundles. The framework name is derived from the
+    // staged filename (libonnxruntime.{ver}.dylib) by stripping 'lib', the
+    // '.dylib' suffix, and all dots: libonnxruntime.1.22.0.dylib →
+    // onnxruntime1220.framework/onnxruntime1220. macOS dlopen expands rpath
+    // entries for relative paths, so the @executable_path/../Frameworks rpath
+    // baked into the app binary finds Contents/Frameworks/onnxruntime1220.framework/.
+    if (Platform.isMacOS) {
+      final fw = 'onnxruntime${ortVersion.replaceAll('.', '')}';
+      return DynamicLibrary.open('$fw.framework/$fw');
+    }
     if (Platform.isLinux) return DynamicLibrary.open('libonnxruntime.so');
     if (Platform.isWindows) return DynamicLibrary.open('onnxruntime.dll');
     throw UnsupportedError(

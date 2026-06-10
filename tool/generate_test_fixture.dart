@@ -26,8 +26,8 @@
 ///
 /// ONNX protobuf wire format reference (proto3):
 ///   ModelProto   field 1  = ir_version (int64)
-///   ModelProto   field 2  = opset_import (repeated OperatorSetIdProto)
-///   ModelProto   field 8  = graph (GraphProto)
+///   ModelProto   field 8  = opset_import (repeated OperatorSetIdProto)
+///   ModelProto   field 7  = graph (GraphProto)
 ///   GraphProto   field 1  = node (repeated NodeProto)
 ///   GraphProto   field 11 = name (string)
 ///   GraphProto   field 11 = input (repeated ValueInfoProto)   — field 11
@@ -166,8 +166,8 @@ List<int> _graphProto({
 
 /// Builds the complete ModelProto.
 ///
-/// ModelProto: field 1 = ir_version (int64), field 2 = opset_import,
-///             field 8 = graph
+/// ModelProto: field 1 = ir_version (int64), field 7 = graph,
+///             field 8 = opset_import
 List<int> _modelProto({
   required int irVersion,
   required int opsetVersion,
@@ -176,8 +176,8 @@ List<int> _modelProto({
   final opset = _opsetImport(opsetVersion);
   return [
     ..._varintField(1, irVersion), // ir_version
-    ..._lenField(2, opset), // opset_import
-    ..._lenField(8, graph), // graph
+    ..._lenField(7, graph), // graph
+    ..._lenField(8, opset), // opset_import
   ];
 }
 
