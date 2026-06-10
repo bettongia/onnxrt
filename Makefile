@@ -141,8 +141,40 @@ license_add:
 
 coverage:
 	dart test --coverage-path=coverage/lcov.info
-	genhtml coverage/lcov.info --output-dir coverage/html
+
+	rm -rf site/coverage
+	mkdir -p site/coverage
+	genhtml coverage/lcov.info -o site/coverage
+
 .PHONY: coverage
+
+# BEGIN: Documentation site tasks
+site/:
+	mkdir -p site
+
+site: styles site/index.html site/spec.html site/roadmap.html site/api/index.html coverage | site/
+.PHONY: site
+
+styles: site/styles/styles.css
+.PHONY: styles
+
+site/index.html:  docs/index.md README.md docs/.pandoc docs/template/header.html | site/
+	pandoc --defaults="docs/.pandoc" docs/index.md README.md -o "site/index.html";
+
+site/spec.html:  docs/spec/*.md docs/spec/.pandoc docs/template/header.html | site/
+	pandoc --defaults="docs/spec/.pandoc" --mathml docs/spec/*.md -o "site/spec.html";
+
+site/roadmap.html: docs/roadmap/*.md docs/.pandoc docs/template/header.html | site/
+	pandoc --defaults="docs/.pandoc" docs/roadmap/v*.md -o "site/roadmap.html";
+
+site/styles/styles.css: docs/styles/styles.css | site/
+	mkdir -p site/styles/
+	cp docs/styles/styles.css site/styles/styles.css
+
+site/api/index.html:
+	dart doc -o site/api/index.html
+
+# END: Documentation site tasks
 
 prepare:
 	dart pub global activate coverage
@@ -152,4 +184,5 @@ prepare:
 clean:
 	rm -rf coverage
 	rm -rf doc
+	rm -rf site
 .PHONY: clean

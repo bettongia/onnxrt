@@ -31,3 +31,8 @@ doc/api/
 coverage/
 *.log
 .claude/agent-memory
+
+scratch.md
+api-docs/
+site/
+.claude/settings.json
