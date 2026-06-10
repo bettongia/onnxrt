@@ -1,6 +1,6 @@
 # iOS ORT Support via SPM Plugin Shim
 
-**Status**: Investigated
+**Status**: Implementing
 
 **PR link**: _(pending)_
 
