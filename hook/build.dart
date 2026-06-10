@@ -141,11 +141,33 @@ const _sha256Manifest = <String, String>{
   // TODO(betto_onnxrt#2): compute with: curl -fsSL <url> | sha256sum
   'pod-archive-onnxruntime-c-1.22.0.zip':
       '0000000000000000000000000000000000000000000000000000000000000000',
-  // Android AAR — NOT present in the v1.22.0 GitHub release assets.
-  // This entry is a placeholder; _buildAndroid will fail until the Maven
-  // Central AAR URL is confirmed for v1.22.0.
-  'onnxruntime-android-1.22.0.aar':
-      '0000000000000000000000000000000000000000000000000000000000000000',
+  // Android AAR — distributed via Maven Central, not GitHub Releases.
+  // URL: https://repo1.maven.org/maven2/com/microsoft/onnxruntime/
+  //        onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar
+  //
+  // Two-level verification:
+  //   - Archive-level digest: keyed as '<aarName>.archive', checked before
+  //     extraction. Cross-checked against Maven Central's .aar.sha256 sidecar.
+  //   - Per-ABI .so digest: keyed as 'onnxruntime-android-{abi}-{ver}.so',
+  //     checked after extraction. Each ABI has a distinct .so binary.
+  //
+  // Both digests computed 2026-06-10:
+  //   curl -fsSL <url> -o onnxruntime-android-1.22.0.aar && shasum -a 256 onnxruntime-android-1.22.0.aar
+  //   unzip -p onnxruntime-android-1.22.0.aar jni/{abi}/libonnxruntime.so | shasum -a 256
+  'onnxruntime-android-1.22.0.aar.archive':
+      '04a4617a9c797cf49225595e45b5546081cb34c86ac817581141577d3b7dbfe2',
+  // arm64-v8a (standard Android emulator on Apple Silicon; physical arm64 devices)
+  'onnxruntime-android-arm64-v8a-1.22.0.so':
+      '999ecfdb5b5a13e4097487773b6d71ce8a075408a237daab072e8f5e817bd78e',
+  // armeabi-v7a (32-bit ARM devices)
+  'onnxruntime-android-armeabi-v7a-1.22.0.so':
+      '2ca20b18eecc56d066018b4c741dbeaeb2627187e1277b63682377ade6608b39',
+  // x86_64 (64-bit Intel emulator)
+  'onnxruntime-android-x86_64-1.22.0.so':
+      'e3e67500ac56271802355bad3a46dcfcb90ce6392d9c4793b5a2c48da0d2a4e9',
+  // x86 (32-bit Intel emulator)
+  'onnxruntime-android-x86-1.22.0.so':
+      '569eb4f19cfd11a6248c5019b509cd731444cbe85e74d72bdec4a743b245bea1',
 };
 
 // ── Hook entry point ──────────────────────────────────────────────────────────
@@ -319,15 +341,31 @@ Future<void> _buildAndroid(
   final cacheDir = _cacheDirectory(packageRoot, version);
 
   final versionedArchiveName = 'onnxruntime-android-$version.aar';
-  final expectedSha = _sha256Manifest[versionedArchiveName];
-  if (expectedSha == null) {
+
+  // Two-level verification (see _sha256Manifest for details):
+  //   1. Archive-level: verify the downloaded AAR against a known-good digest
+  //      before extracting anything — guards against a substituted AAR.
+  //   2. Per-ABI .so: verify the extracted .so against a per-ABI digest —
+  //      guards against a corrupt or wrong-ABI extraction.
+  final archiveKey = '$versionedArchiveName.archive';
+  final archiveSha = _sha256Manifest[archiveKey];
+  if (archiveSha == null) {
     throw StateError(
-      'No SHA-256 manifest entry for "$versionedArchiveName". '
+      'No archive-level SHA-256 manifest entry for "$archiveKey". '
       'Add the checksum to _sha256Manifest in hook/build.dart.',
     );
   }
 
   final abiDir = _androidAbiDir(arch);
+  final soKey = 'onnxruntime-android-$abiDir-$version.so';
+  final expectedSoSha = _sha256Manifest[soKey];
+  if (expectedSoSha == null) {
+    throw StateError(
+      'No per-ABI SHA-256 manifest entry for "$soKey". '
+      'Add the checksum to _sha256Manifest in hook/build.dart.',
+    );
+  }
+
   final innerPath = 'jni/$abiDir/libonnxruntime.so';
   final libFile = File('${cacheDir.path}/android/$abiDir/libonnxruntime.so');
   await Directory(libFile.parent.path).create(recursive: true);
@@ -341,10 +379,11 @@ Future<void> _buildAndroid(
     dest: libFile,
     archiveName: versionedArchiveName,
     innerPath: innerPath,
-    expectedSha256: expectedSha,
+    expectedSha256: expectedSoSha,
     version: version,
     logger: logger,
     downloadUrl: mavenUrl,
+    archiveSha256: archiveSha,
   );
 
   output.assets.code.add(
@@ -383,8 +422,18 @@ Directory _cacheDirectory(Uri packageRoot, String version) {
 ///
 /// If [dest] is already present and valid, returns immediately (fast path).
 /// Otherwise downloads the archive from GitHub Releases (or [downloadUrl] if
-/// supplied), extracts [innerPath], verifies the checksum, and atomically
+/// supplied), optionally verifies the archive itself against [archiveSha256],
+/// extracts [innerPath], verifies the extracted file checksum, and atomically
 /// renames the temp file to [dest].
+///
+/// ## Two-level verification
+///
+/// When [archiveSha256] is provided, the downloaded archive bytes are
+/// checksummed before extraction begins. This guards against a substituted or
+/// tampered archive (e.g. a man-in-the-middle AAR that contains the expected
+/// `.so` alongside additional malicious entries). The all-zeros placeholder
+/// bypass applies to [archiveSha256] independently of [expectedSha256] —
+/// either can be a placeholder without disabling the other's real check.
 ///
 /// ## Crash safety
 ///
@@ -400,6 +449,7 @@ Future<void> _ensureFile({
   required String version,
   required Logger logger,
   String? downloadUrl,
+  String? archiveSha256,
 }) async {
   // Fast path: file already present and checksum valid.
   if (await _isValid(dest, expectedSha256)) {
@@ -418,9 +468,34 @@ Future<void> _ensureFile({
   logger.info('  downloading $archiveName ...');
   final archiveBytes = await _download(url, logger);
 
+  // Archive-level integrity check (two-level verification, first gate).
+  // When archiveSha256 is provided, verify the downloaded archive before
+  // extracting. The all-zeros placeholder disables this check for development.
+  if (archiveSha256 != null) {
+    final actualArchiveSha = _sha256PureDart(Uint8List.fromList(archiveBytes));
+    if (actualArchiveSha != archiveSha256) {
+      if (archiveSha256 == '0' * 64) {
+        logger.warning(
+          '  WARNING: archive SHA-256 not configured for $archiveName. '
+          'Update _sha256Manifest with the real archive checksum before release. '
+          'Got: $actualArchiveSha',
+        );
+      } else {
+        throw StateError(
+          'Archive SHA-256 mismatch for $archiveName.\n'
+          '  Expected : $archiveSha256\n'
+          '  Got      : $actualArchiveSha\n'
+          'The download may be corrupt or tampered. Delete the cache and retry, '
+          'or update _sha256Manifest in hook/build.dart.',
+        );
+      }
+    }
+  }
+
   logger.info('  extracting $innerPath ...');
   final fileBytes = _extractFromArchive(archiveBytes, archiveName, innerPath);
 
+  // Extracted-file integrity check (two-level verification, second gate).
   // Verify SHA-256 before writing. This is the integrity guarantee.
   final actualSha = _sha256PureDart(Uint8List.fromList(fileBytes));
   if (actualSha != expectedSha256) {
@@ -429,13 +504,13 @@ Future<void> _ensureFile({
     // Remove this bypass before shipping (replace zeros with real values).
     if (expectedSha256 == '0' * 64) {
       logger.warning(
-        '  WARNING: SHA-256 not configured for $archiveName. '
+        '  WARNING: SHA-256 not configured for $archiveName ($innerPath). '
         'Update _sha256Manifest with the real checksum before release. '
         'Got: $actualSha',
       );
     } else {
       throw StateError(
-        'SHA-256 mismatch for $archiveName.\n'
+        'SHA-256 mismatch for $archiveName ($innerPath).\n'
         '  Expected : $expectedSha256\n'
         '  Got      : $actualSha\n'
         'The download may be corrupt. Delete the cache and retry, or update '

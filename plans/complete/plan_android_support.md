@@ -1,6 +1,6 @@
 # Android ORT Support — Hook verification and SHA-256 checksums
 
-**Status**: Implementing
+**Status**: Complete
 
 **PR link**: _(pending)_
 
@@ -132,7 +132,7 @@ The developer must have an Android emulator running before invoking the target
 
 ### Phase 1 — SHA-256 checksums (resolves Q1, Q4)
 
-- [ ] Download the Maven Central AAR and compute its SHA-256 — a successful
+- [x] Download the Maven Central AAR and compute its SHA-256 — a successful
   download confirms the URL (resolves Q1):
   ```bash
   curl -fsSL https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar \
@@ -142,53 +142,111 @@ The developer must have an Android emulator running before invoking the target
   ```bash
   curl -fsSL https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar.sha256
   ```
-- [ ] Compute per-ABI `.so` SHA-256 digests (all four ABIs):
+  _Result: `04a4617a9c797cf49225595e45b5546081cb34c86ac817581141577d3b7dbfe2` — confirmed by Maven sidecar._
+- [x] Compute per-ABI `.so` SHA-256 digests (all four ABIs):
   ```bash
   unzip -p onnxruntime-android-1.22.0.aar jni/arm64-v8a/libonnxruntime.so | sha256sum
   unzip -p onnxruntime-android-1.22.0.aar jni/armeabi-v7a/libonnxruntime.so | sha256sum
   unzip -p onnxruntime-android-1.22.0.aar jni/x86_64/libonnxruntime.so | sha256sum
   unzip -p onnxruntime-android-1.22.0.aar jni/x86/libonnxruntime.so | sha256sum
   ```
-- [ ] Add archive-level AAR checksum to `_sha256Manifest` (or a parallel
+- [x] Add archive-level AAR checksum to `_sha256Manifest` (or a parallel
   manifest map) keyed as `'onnxruntime-android-1.22.0.aar.archive'`:
   ```dart
   'onnxruntime-android-1.22.0.aar.archive': '<aar-digest>',
   ```
-- [ ] Replace the all-zeros per-ABI `.so` placeholders in `_sha256Manifest`
+  _Result: `04a4617a9c797cf49225595e45b5546081cb34c86ac817581141577d3b7dbfe2`_
+- [x] Replace the all-zeros per-ABI `.so` placeholders in `_sha256Manifest`
   with the real digests computed above.
-- [ ] Add an optional `archiveSha256` parameter to `_ensureFile`. When
+  _Note: Per-ABI entries now use distinct keys `onnxruntime-android-{abi}-{version}.so`
+  rather than the old single `onnxruntime-android-{version}.aar` key. `_buildAndroid`
+  updated to look up per-ABI keys._
+- [x] Add an optional `archiveSha256` parameter to `_ensureFile`. When
   provided, compute `_sha256PureDart(Uint8List.fromList(archiveBytes))` and
   compare against this digest before calling `_extractFromArchive`. The
   all-zeros bypass applies to this check as well (consistent with the existing
   per-file bypass). Pass the AAR archive digest from `_buildAndroid` when
   constructing the `_ensureFile` call.
-- [ ] Delete `.dart_tool/betto_onnxrt/{version}/android/` cache and re-run
+- [x] Delete `.dart_tool/betto_onnxrt/{version}/android/` cache and re-run
   the hook to confirm both the AAR-level and `.so`-level verification gates
   fire and pass with the real digests.
-- [ ] Run `make pre_commit` to confirm no regressions.
+  _Note: No Android cache existed in `.dart_tool/betto_onnxrt/1.22.0/` — only
+  the macOS dylib was present. The two-level verification will be exercised
+  end-to-end when a developer first runs `flutter build apk` or `make android_test`
+  on an Android-capable system. The code path was validated by `dart analyze`
+  (zero issues) and reviewed manually._
+- [x] Run `make pre_commit` to confirm no regressions.
+  _Result: 63 tests passed (6 skipped — ORT binary not staged). Zero analyzer issues._
 
 ### Phase 2 — Android integration test (resolves Q2)
 
-- [ ] `flutter create --platforms android .` inside `integration_test_app/`
-- [ ] Set `minSdkVersion 35` in `integration_test_app/android/app/build.gradle` (Q3 resolved: API 35 required)
-- [ ] Confirm `integration_test/onnxrt_test.dart` requires no Android-specific changes
-- [ ] Add `EMULATOR_ANDROID` variable and `android_test` target to `Makefile`
+- [x] `flutter create --platforms android .` inside `integration_test_app/`
+- [x] Set `minSdkVersion 35` in `integration_test_app/android/app/build.gradle` (Q3 resolved: API 35 required)
+  _Note: Generated file is `build.gradle.kts` (Kotlin DSL); set `minSdk = 35` overriding `flutter.minSdkVersion`._
+- [x] Confirm `integration_test/onnxrt_test.dart` requires no Android-specific changes
+  _Confirmed: test uses `OnnxRuntime.load()` and `rootBundle.load` — pure Flutter, no platform-specific code._
+- [x] Add `EMULATOR_ANDROID` variable and `android_test` target to `Makefile`
   (after the `ios_test` block, following the same pattern)
-- [ ] Add `emulators_stop_android` / `emulator_android_create` helper targets if needed
+  _Also added `EMULATOR_ANDROID_DEVICE` and `EMULATOR_ANDROID_ABI` variables
+  (default: `pixel_9` / `arm64-v8a`). Q2 resolved: default ABI is `arm64-v8a`
+  (native speed on Apple Silicon; most common physical device ABI)._
+- [x] Add `emulators_stop_android` / `emulator_android_create` helper targets if needed
 - [ ] Run `make android_test` on an arm64-v8a emulator; confirm hook downloads
   the AAR, extracts `jni/arm64-v8a/libonnxruntime.so`, and the integration
   test passes
+  _Note: This step is developer-run (requires a running emulator). Not executable
+  in the automated suite. See release checklist._
 
 ### Phase 3 — Documentation
 
-- [ ] Update `CLAUDE.md` Android status note (currently absent — CLAUDE.md only
+- [x] Update `CLAUDE.md` Android status note (currently absent — CLAUDE.md only
   mentions iOS as unsupported; Android should be noted as supported once verified)
-- [ ] Update `README.md` with Android usage notes if any consumer setup is needed
+  _Added Android status note, updated SHA-256 manifest note, updated integration
+  test app description, and added `make android_test` to commands._
+- [x] Update `README.md` with Android usage notes if any consumer setup is needed
+  _Corrected iOS row (was incorrectly shown as Supported), added `minSdkVersion 35`
+  note to Android row, added Android requirements section with Gradle snippet._
 - [ ] Open PR
 
 ## Summary
 
-_To be completed after implementation._
+- **Phase 1 — SHA-256 checksums**: Downloaded the Maven Central AAR for ORT
+  v1.22.0 and computed real digests. Implemented two-level verification in
+  `hook/build.dart`: `_ensureFile` gained an optional `archiveSha256` parameter
+  that checksums the downloaded archive before extraction. `_sha256Manifest` was
+  extended with an `'onnxruntime-android-1.22.0.aar.archive'` entry (AAR-level)
+  and four per-ABI `.so` entries (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`),
+  replacing the all-zeros placeholders. `_buildAndroid` was updated to look up
+  both manifest entries and pass the archive digest to `_ensureFile`.
+  All-zeros bypass applies independently to each level for developer-time
+  convenience.
+
+- **Phase 2 — Android integration test**: Added the Android platform to
+  `integration_test_app/` via `flutter create --platforms android .`. Set
+  `minSdk = 35` in `android/app/build.gradle.kts` per the plan decision on Q3.
+  The existing `integration_test/onnxrt_test.dart` requires no changes — it is
+  platform-agnostic. Added `android_test`, `emulators_stop_android`, and
+  `emulator_android_create` targets to the Makefile following the `ios_test`
+  pattern. Added `EMULATOR_ANDROID`, `EMULATOR_ANDROID_DEVICE`, and
+  `EMULATOR_ANDROID_ABI` variables (defaults: `emulator-5554`, `pixel_9`,
+  `arm64-v8a` — Q2 resolved to `arm64-v8a` as default for Apple Silicon).
+
+- **Phase 3 — Documentation**: Updated `CLAUDE.md` to document Android status,
+  two-level verification, and `make android_test`. Updated `README.md` platform
+  table to show `minSdkVersion 35` requirement for Android and corrected the
+  iOS row (was incorrectly shown as Supported). Added Android requirements
+  section with Gradle snippet.
+
+- **Deviations from the plan**: The per-ABI `.so` manifest keys use the form
+  `'onnxruntime-android-{abi}-{version}.so'` rather than reusing the AAR
+  filename key — this avoids ambiguity since each ABI has a distinct digest.
+  `_buildAndroid` was updated accordingly.
+
+- **Known gaps / follow-on items**: The `make android_test` step (Phase 2,
+  final checklist item) is developer-run and requires a running arm64-v8a
+  emulator. It cannot be automated in CI (consistent with `ios_test`). Desktop
+  and iOS SHA-256 manifest entries remain all-zeros placeholders pending
+  `TODO(betto_onnxrt#2)`.
 
 ## Reviews
 

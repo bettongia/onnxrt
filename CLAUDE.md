@@ -24,6 +24,7 @@ make license_add      # add missing headers
 # Integration tests (require a full Flutter build — not plain dart test)
 make macos_test       # macOS on-device integration tests
 make ios_test         # iOS simulator integration tests (see iOS note below)
+make android_test     # Android emulator integration tests (see Android note below; requires a running emulator)
 
 make container_test   # build and run the CI container via podman
 ```
@@ -42,7 +43,9 @@ To regenerate `lib/src/generated/versions.g.dart` after bumping `VERSION_ONNX`: 
 
 Runs at build time via the Dart native-assets system. Downloads the ONNX Runtime prebuilt binary from GitHub Releases (desktop) or Maven Central (Android), verifies SHA-256, and emits a `CodeAsset` with `DynamicLoadingBundled` link mode. The cache lives at `.dart_tool/betto_onnxrt/{version}/` (gitignored, version-scoped so a bump forces re-download).
 
-The SHA-256 manifest (`_sha256Manifest`) in `hook/build.dart` currently contains all-zeros placeholders — these must be replaced with real values before the first release (see `TODO(betto_onnxrt#2)` in the file).
+The SHA-256 manifest (`_sha256Manifest`) in `hook/build.dart` holds real checksums for Android (both archive-level AAR and per-ABI `.so` digests). Desktop and iOS checksums remain all-zeros placeholders — replace them with real values before the first release (see `TODO(betto_onnxrt#2)` in the file).
+
+For Android, two-level verification is applied: the downloaded AAR is checksummed against the archive-level entry before extraction, then the extracted `.so` is verified against its per-ABI entry.
 
 ### 2. Public library — `lib/`
 
@@ -63,13 +66,15 @@ The ORT C API is accessed entirely through numeric vtable slot indices in `ort_a
 
 ### 3. Integration test app — `integration_test_app/`
 
-A separate Flutter app used for on-device integration tests. It is excluded from the main `dart analyze` and `dart test` runs (see `analysis_options.yaml`). Run via `make macos_test` or `make ios_test`.
+A separate Flutter app used for on-device integration tests. It is excluded from the main `dart analyze` and `dart test` runs (see `analysis_options.yaml`). Run via `make macos_test`, `make ios_test`, or `make android_test`.
 
 ## Key conventions
 
 **ORT version**: Controlled by `VERSION_ONNX` at the repo root. After bumping it, run `dart run tool/generate_versions.dart` to regenerate `lib/src/generated/versions.g.dart`.
 
 **OnnxSession tests** (`test/onnx_session_test.dart`) auto-skip when the ORT binary is not staged. They require the hook to have previously run and produced a cached artifact at `.dart_tool/betto_onnxrt/{version}/`.
+
+**Android status**: Android is supported. `_buildAndroid` in `hook/build.dart` downloads the ORT AAR from Maven Central, applies two-level SHA-256 verification (archive then per-ABI `.so`), and emits a `DynamicLoadingBundled` `CodeAsset`. Real checksums are in `_sha256Manifest` for v1.22.0. Android testing is developer-run via `make android_test` (not CI), consistent with `ios_test`. Use `make emulator_android_create` to create an `arm64-v8a` AVD (recommended on Apple Silicon) and `make emulators_stop_android` to shut it down.
 
 **iOS status**: iOS is intentionally unsupported via the native-assets hook (Q1 2026 spike verdict). The ORT XCFramework ships a static library, but Flutter iOS native-assets requires dynamic link mode. iOS support requires an SPM plugin shim. `_buildIos` in `hook/build.dart` emits a warning and no `CodeAsset`.
 

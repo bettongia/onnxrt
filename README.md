@@ -28,8 +28,8 @@ crash-safe model-download infrastructure.
 | macOS    | Supported | `libonnxruntime.dylib` bundled via hook        |
 | Linux    | Supported | `libonnxruntime.so` bundled via hook           |
 | Windows  | Supported | `onnxruntime.dll` bundled via hook             |
-| Android  | Supported | `libonnxruntime.so` bundled in APK `lib/`      |
-| iOS      | Supported | ORT XCFramework extracted and statically linked |
+| Android  | Supported | `libonnxruntime.so` bundled in APK `lib/`; requires `minSdkVersion 35` |
+| iOS      | Not supported | ORT XCFramework is a static library; Flutter iOS native-assets requires dynamic link mode. Requires the SPM plugin shim (not yet implemented). |
 | Web      | Not supported | Native inference is excluded by design     |
 
 Bundles ONNX Runtime **v1.22.0**.
@@ -39,6 +39,27 @@ Bundles ONNX Runtime **v1.22.0**.
 - Dart SDK `^3.12.0`
 - Native assets support must be enabled in your project (Dart ≥ 3.3 or
   Flutter ≥ 3.22 for stable native-assets support)
+
+### Android
+
+Set `minSdkVersion` to at least **35** in your app's `android/app/build.gradle`
+(or `build.gradle.kts`):
+
+```kotlin
+// build.gradle.kts
+android {
+    defaultConfig {
+        minSdk = 35
+    }
+}
+```
+
+The ORT `.so` for your target ABI is downloaded from Maven Central, SHA-256
+verified (both the archive and the extracted library), and placed in the APK
+`lib/{abi}/` directory automatically by the native-assets build hook. No
+additional Gradle dependencies or manual binary management are required.
+
+Supported ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`.
 
 ## Getting started
 

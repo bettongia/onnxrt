@@ -4,6 +4,13 @@ export EMULATOR_IOS ?= ios-emulator
 export EMULATOR_IOS_DEVICE ?= iPhone\ 17
 export EMULATOR_IOS_RUNTIME ?= iOS26.5
 
+# Android emulator device ID — typically emulator-5554 when one emulator is
+# running. arm64-v8a is the default ABI on Apple Silicon Macs (native speed);
+# x86_64 emulators can be used but run under translation.
+export EMULATOR_ANDROID ?= emulator-5554
+export EMULATOR_ANDROID_DEVICE ?= pixel_9
+export EMULATOR_ANDROID_ABI ?= arm64-v8a
+
 # BEGIN: Primary tasks
 
 default: clean prepare license_check format analyze test coverage doc
@@ -42,6 +49,17 @@ ios_test:
 	  flutter test integration_test/onnxrt_test.dart --device-id $(EMULATOR_IOS)
 .PHONY: ios_test
 
+# Run integration tests on a connected Android emulator.
+# Requires an Android emulator to be running and reachable via `flutter devices`.
+# Default device ID is emulator-5554 (the first emulator when one is running).
+# On Apple Silicon Macs, use an arm64-v8a system image for native speed.
+# Usage: make android_test
+android_test:
+	cd integration_test_app && \
+	  flutter pub get && \
+	  flutter test integration_test/onnxrt_test.dart --device-id $(EMULATOR_ANDROID)
+.PHONY: android_test
+
 # END: Primary tasks
 
 # START: Mobile emulators
@@ -53,6 +71,14 @@ emulators_stop_ios:
 emulator_ios_create:
 	xcrun simctl create $(EMULATOR_IOS) $(EMULATOR_IOS_DEVICE) $(EMULATOR_IOS_RUNTIME)
 .PHONY: emulator_ios_create
+
+emulators_stop_android:
+	adb -s $(EMULATOR_ANDROID) emu kill || true
+.PHONY: emulators_stop_android
+
+emulator_android_create:
+	avdmanager create avd --name $(EMULATOR_ANDROID_DEVICE) --package "system-images;android-35;google_apis;$(EMULATOR_ANDROID_ABI)" --device "pixel_9" --force
+.PHONY: emulator_android_create
 
 # END: Mobile emulators
 
