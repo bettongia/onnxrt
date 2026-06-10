@@ -1,6 +1,6 @@
 # Android ORT Support — Hook verification and SHA-256 checksums
 
-**Status**: Investigated
+**Status**: Implementing
 
 **PR link**: _(pending)_
 
