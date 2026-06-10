@@ -1,6 +1,6 @@
 # iOS ORT Support via SPM Plugin Shim
 
-**Status**: Questions
+**Status**: Investigated
 
 **PR link**: _(pending)_
 
@@ -43,18 +43,12 @@ Key constraints:
   confirm. If hidden, an alternative is a thin Swift bridging wrapper that
   re-exports `OrtGetApiBase` as a visible symbol.
 
-- [ ] **Q2 — Shim package location.** Where does the shim live?
-  Three options:
-  - (a) **Sub-package in this repo** — `packages/betto_onnxrt_ios/` inside
-    `bettongia/onnxrt`, following the monorepo pattern. Simplest to maintain
-    alongside `betto_onnxrt`.
-  - (b) **Separate repo** — `bettongia/onnxrt-ios`. More isolation, more
-    overhead.
-  - (c) **Integrated into `kmdb_ui`** — `kmdb_ui`'s `ios/Package.swift`
-    declares the SPM dependency directly; no separate plugin. Simpler but
-    non-portable; every other consumer app must repeat the setup.
-  _Recommendation: option (a). Keeps the shim version-locked to
-  `betto_onnxrt` and reduces consumer setup to a single `pubspec.yaml` line._
+- [x] **Q2 — Shim package location.**
+  _Decision: option (a) — sub-package `packages/betto_onnxrt_ios/` inside this
+  repo. Keeps the shim version-locked to `betto_onnxrt`, avoids requiring every
+  consumer app to repeat the SPM wiring, and follows a recognisable Flutter
+  plugin pattern. The plan's Investigation section already fully specifies the
+  structure and `pubspec.yaml` content for this option._
 
 - [ ] **Q3 — Minimum Flutter version for SPM plugin support.** Flutter SPM
   plugin support landed experimentally in 3.22 and stabilised in 3.27. What
@@ -62,15 +56,13 @@ Key constraints:
   `Package.swift` works without flags. If below 3.27, check whether
   `--enable-experiment=swift-package-manager` is needed.
 
-- [ ] **Q4 — `OnnxRuntime.load()` iOS branch in `runtime.dart`.** Currently
-  `load()` opens the ORT dylib via the CodeAsset staged by the hook. On iOS
-  the CodeAsset is absent. The iOS branch must call `DynamicLibrary.process()`
-  instead. Two implementation paths:
-  - (a) Runtime `Platform.isIOS` check inside `load()`.
-  - (b) Conditional export (`lib/src/runtime_ios.dart` vs
-    `lib/src/runtime_native.dart`) via `if (dart.library.…)`. 
-  _Preference: option (a) is simpler given only one iOS-specific branch; the
-  existing `runtime.dart` already imports `dart:io` for FFI._
+- [x] **Q4 — `OnnxRuntime.load()` iOS branch in `runtime.dart`.**
+  _Decision: option (a), `Platform.isIOS` check — already implemented.
+  `_openLibrary()` in `runtime.dart` contains the `Platform.isIOS →
+  DynamicLibrary.process()` branch as of the Q1 spike (2026-06-10). Phase 3
+  checklist item 1 is complete. Note: the `_openLibrary()` doc comment still
+  references `.framework` bundles staged by the hook — this is incorrect and
+  must be corrected as part of Phase 3 cleanup (see Review 2)._
 
 - [ ] **Q5 — iOS CI coverage.** The current CI matrix covers macOS, Linux, and
   Windows. Adding an iOS job requires `macos-latest` runner + iOS simulator.
@@ -463,3 +455,77 @@ Design and inclusivity skills are not relevant — this plan has no UI surface.
   questions`. The doc comment must be corrected to match the `_buildIos`
   implementation regardless of Q6's answer; the question is which direction
   the correction goes.
+
+### Review 2: 2026-06-10
+
+**Problem Statement Assessment**
+
+No change from Review 1. The problem is real, correctly scoped, and confirmed
+by empirical evidence from the Q1 spike. Q6 is now closed with the static `.a`
+verdict, which removes the only blocker to the plan's core approach.
+
+**Proposed Solution Assessment**
+
+The SPM shim approach is confirmed correct. The plan now has a clear phase
+structure, a concrete shim package layout, version-pinning strategy, and a
+proposed consumer wiring. With Q2 and Q4 closed, the remaining open questions
+(Q1, Q3, Q5) are genuine spike items that the Phase 1 work will resolve — they
+do not block planning sign-off.
+
+**Architecture Fit**
+
+Confirmed from Review 1. The sub-package location for the shim (Q2, now closed)
+is the right call. The pure-Dart constraint on `betto_onnxrt` is preserved.
+
+**Risk and Edge Cases**
+
+Two items carried forward from Review 1 require attention in implementation:
+
+1. **`_openLibrary()` doc comment in `runtime.dart` is still wrong.** Q7
+   covered the `hook/build.dart` doc comment, and that has been corrected.
+   However, `runtime.dart`'s `_openLibrary()` doc comment (lines 163–172) still
+   contains incorrect statements: line 165 says "iOS: resolved by the
+   `.framework` bundle the build hook stages" and lines 171–172 say "On iOS the
+   ORT dylib is embedded in the app's .framework bundle and linked at launch
+   time." Both statements are false for the SPM shim approach — ORT is
+   statically linked via SPM, not bundled by the hook as a `.framework`. This is
+   a live correctness defect in the codebase. It must be fixed as part of Phase
+   3, not deferred.
+
+2. **Phase 3 checklist item 1 is already done.** The `Platform.isIOS →
+   DynamicLibrary.process()` branch exists and is correct. The implementer
+   should mark this done (or note it as pre-implemented) rather than
+   re-examining it. The Phase 3 doc-comment fix to `_openLibrary()` is the
+   actual remaining work in that phase.
+
+3. **Q1 (symbol visibility) remains the most critical technical risk.** If
+   `OrtGetApiBase` has hidden visibility in the static `.a`, `DynamicLibrary.
+   process()` will throw at runtime with a `LookupError`. The `nm -gU` spike in
+   Phase 1 is not optional. Do not proceed to Phase 2 without confirming this.
+
+**Recommendations**
+
+1. Fix the `_openLibrary()` doc comment in `runtime.dart` as part of Phase 3.
+   The text at lines 163–172 must be updated to state that on iOS, ORT is
+   statically linked via the `betto_onnxrt_ios` SPM plugin, and that
+   `DynamicLibrary.process()` is used to resolve symbols from the process image.
+   The reference to `.framework` bundles staged by the hook must be removed.
+
+2. Update the Phase 3 checklist to acknowledge that the `DynamicLibrary.process()`
+   branch is pre-implemented and that the work remaining is doc-comment
+   correction only.
+
+3. Resolve Q5 before Phase 5 implementation: decide explicitly whether the iOS
+   CI job runs on every push (with the 3–5 minute simulator overhead) or on
+   a scheduled/manual trigger. Both are defensible; the decision just needs to
+   be recorded so the implementer does not have to re-debate it.
+
+**Open questions**
+
+- [ ] **Q5 — iOS CI trigger.** Should the `test-ios` job run on every push
+  (adds ~5 min to CI wall time), on a nightly schedule, or on
+  `workflow_dispatch` only? The existing `make ios_test` infrastructure is
+  ready; this is a policy decision. Given the plan already defers real-device
+  testing to a release checklist entry, a nightly or `workflow_dispatch` trigger
+  is a reasonable default that avoids routine slowdown — but this must be
+  decided before Phase 5 implementation.

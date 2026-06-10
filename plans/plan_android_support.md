@@ -1,6 +1,6 @@
 # Android ORT Support — Hook verification and SHA-256 checksums
 
-**Status**: Questions
+**Status**: Investigated
 
 **PR link**: _(pending)_
 
@@ -41,18 +41,29 @@ Android testing is developer-run via the Makefile, not CI (consistent with
   emulator can also be used. Confirm the target ABI and record it in the Makefile
   variable (analogous to `EMULATOR_IOS` / `EMULATOR_IOS_DEVICE`).
 
-- [ ] **Q3 — `minSdkVersion` for ORT v1.22.0.** The ORT Android AAR requires a
+- [x] **Q3 — `minSdkVersion` for ORT v1.22.0.** The ORT Android AAR requires a
   minimum SDK version (typically API 24 or higher for recent ORT releases).
   `flutter create --platforms android` generates a default `minSdkVersion` of 21.
   Confirm the required `minSdkVersion` for ORT v1.22.0 and add a checklist step
   to set it in `integration_test_app/android/app/build.gradle` before attempting
   a build.
+  _Decision: Set `minSdkVersion` to API 35. After `flutter create --platforms android`,
+  update `integration_test_app/android/app/build.gradle` to `minSdkVersion 35`
+  before attempting any build or emulator run._
 
-- [ ] **Q4 — SHA-256 verification target: extracted `.so` or the AAR archive?**
+- [x] **Q4 — SHA-256 verification target: extracted `.so` or the AAR archive?**
   `_ensureFile` currently verifies the SHA-256 of the *extracted* `.so`, not
   the downloaded AAR. Decide whether this is acceptable or whether the plan
   should add a separate pre-extraction AAR checksum step (analogous to how
   desktop verifies the `.tgz`/`.zip` directly).
+  _Decision: Adopt two-level verification — verify the AAR against the Maven
+  Central `.aar.sha256` sidecar before extraction, in addition to the existing
+  per-ABI `.so` checksum. `_ensureFile` gains an optional `archiveSha256`
+  parameter; when present the archive bytes are checksummed before
+  `_extractFromArchive` is called. `_sha256Manifest` gains a second entry per
+  AAR (e.g. `'onnxruntime-android-1.22.0.aar.archive': '<aar-digest>'` or a
+  parallel manifest map). Phase 1 includes computing both digests and wiring
+  the new parameter in `_buildAndroid`._
 
 ## Investigation
 
@@ -119,16 +130,47 @@ The developer must have an Android emulator running before invoking the target
 
 ## Implementation plan
 
-### Phase 1 — SHA-256 checksums (resolves Q1)
+### Phase 1 — SHA-256 checksums (resolves Q1, Q4)
 
-- [ ] Confirm the Maven Central AAR URL resolves for v1.22.0 (Q1)
-- [ ] Compute SHA-256: `curl -fsSL <url> | sha256sum`
-- [ ] Replace the all-zeros placeholder in `_sha256Manifest` with the real digest
-- [ ] Run `make pre_commit` to confirm no regressions
+- [ ] Download the Maven Central AAR and compute its SHA-256 — a successful
+  download confirms the URL (resolves Q1):
+  ```bash
+  curl -fsSL https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar \
+    -o onnxruntime-android-1.22.0.aar && sha256sum onnxruntime-android-1.22.0.aar
+  ```
+  Cross-check against Maven Central's `.aar.sha256` sidecar:
+  ```bash
+  curl -fsSL https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar.sha256
+  ```
+- [ ] Compute per-ABI `.so` SHA-256 digests (all four ABIs):
+  ```bash
+  unzip -p onnxruntime-android-1.22.0.aar jni/arm64-v8a/libonnxruntime.so | sha256sum
+  unzip -p onnxruntime-android-1.22.0.aar jni/armeabi-v7a/libonnxruntime.so | sha256sum
+  unzip -p onnxruntime-android-1.22.0.aar jni/x86_64/libonnxruntime.so | sha256sum
+  unzip -p onnxruntime-android-1.22.0.aar jni/x86/libonnxruntime.so | sha256sum
+  ```
+- [ ] Add archive-level AAR checksum to `_sha256Manifest` (or a parallel
+  manifest map) keyed as `'onnxruntime-android-1.22.0.aar.archive'`:
+  ```dart
+  'onnxruntime-android-1.22.0.aar.archive': '<aar-digest>',
+  ```
+- [ ] Replace the all-zeros per-ABI `.so` placeholders in `_sha256Manifest`
+  with the real digests computed above.
+- [ ] Add an optional `archiveSha256` parameter to `_ensureFile`. When
+  provided, compute `_sha256PureDart(Uint8List.fromList(archiveBytes))` and
+  compare against this digest before calling `_extractFromArchive`. The
+  all-zeros bypass applies to this check as well (consistent with the existing
+  per-file bypass). Pass the AAR archive digest from `_buildAndroid` when
+  constructing the `_ensureFile` call.
+- [ ] Delete `.dart_tool/betto_onnxrt/{version}/android/` cache and re-run
+  the hook to confirm both the AAR-level and `.so`-level verification gates
+  fire and pass with the real digests.
+- [ ] Run `make pre_commit` to confirm no regressions.
 
 ### Phase 2 — Android integration test (resolves Q2)
 
 - [ ] `flutter create --platforms android .` inside `integration_test_app/`
+- [ ] Set `minSdkVersion 35` in `integration_test_app/android/app/build.gradle` (Q3 resolved: API 35 required)
 - [ ] Confirm `integration_test/onnxrt_test.dart` requires no Android-specific changes
 - [ ] Add `EMULATOR_ANDROID` variable and `android_test` target to `Makefile`
   (after the `ios_test` block, following the same pattern)
@@ -204,5 +246,70 @@ However, there are four issues that need resolution before this can be marked `I
 
 **Open questions**
 
-- [ ] Q3 — `minSdkVersion` required by ORT v1.22.0 AAR. See Q3 in `## Open questions` above.
+- [x] Q3 — `minSdkVersion` required by ORT v1.22.0 AAR.
+  _Decision: API 35. Set `minSdkVersion 35` in `build.gradle` after `flutter create --platforms android`._
 - [ ] Q4 — SHA-256 verification target (extracted `.so` vs. AAR). See Q4 in `## Open questions` above.
+
+### Review 2: 2026-06-10
+
+**Q3 resolved — decision recorded.**
+
+`minSdkVersion` is set to API 35. The checklist in Phase 2 has been updated with an explicit step to apply this after `flutter create --platforms android`. This resolves the blocker identified in Review 1.
+
+**Q4 — SHA-256 verification target: this needs a decision.**
+
+Reading `_ensureFile` directly clarifies what the current code does. The SHA-256 stored in `_sha256Manifest` (keyed by the AAR filename) is verified against the **extracted `.so` bytes**, not the downloaded AAR. Specifically, `_ensureFile` calls `_extractFromArchive` to get `fileBytes`, then calls `_sha256PureDart(Uint8List.fromList(fileBytes))` and compares that against `expectedSha256`. The AAR bytes themselves are never checksummed — they are downloaded, used for extraction, and discarded without any integrity check on the archive as a whole.
+
+This is a genuine supply-chain concern. The correct model for verifying downloaded archives is to checksum the artifact you retrieved from the network — the AAR — and compare it against a trusted digest. Maven Central publishes SHA-256 sidecar files (`.aar.sha256`) alongside every artifact precisely for this purpose. The current approach inverts this: it checksums the inner `.so` after extraction, meaning a tampered AAR (e.g. one with a malicious secondary entry, or an AAR fetched from a man-in-the-middle origin) is never detected as long as the extracted `.so` matches its expected hash.
+
+Two concrete attack scenarios the current approach does not catch:
+1. A compromised AAR that bundles the legitimate `.so` alongside additional malicious native code loaded at runtime by the Android system (e.g. a second `.so` in `jni/arm64-v8a/` loaded via `System.loadLibrary`). The extracted `.so` hash passes; the additional payload is never examined.
+2. A network-level substitution of the AAR with one that produces the expected `.so` bytes when extracted from one path, but differs in other entries.
+
+**Recommendation for Q4:** Add a pre-extraction AAR checksum step. This requires two manifest entries per Android artifact: (a) the AAR-level SHA-256 (matches what Maven Central publishes), and (b) the per-ABI `.so` SHA-256 (the existing per-extracted-file check). The AAR check runs first; only if it passes does extraction proceed. This mirrors the security posture of the desktop path, where the downloaded `.tgz`/`.zip` is the artifact that is checksummed.
+
+The implementation delta is small: `_ensureFile` needs an optional `archiveSha256` parameter. When provided, compute `_sha256PureDart(Uint8List.fromList(archiveBytes))` and compare before calling `_extractFromArchive`. `_sha256Manifest` gains a second entry per AAR like `'onnxruntime-android-1.22.0.aar.archive': '<aar-digest>'` (or a separate manifest map).
+
+The plan should add this as a Phase 1 step and document how to compute both digests:
+```bash
+# AAR digest (verify what you downloaded)
+curl -fsSL <aar-url> -o onnxruntime-android-1.22.0.aar && sha256sum onnxruntime-android-1.22.0.aar
+
+# Per-ABI .so digest (verify what you extract)
+unzip -p onnxruntime-android-1.22.0.aar jni/arm64-v8a/libonnxruntime.so | sha256sum
+unzip -p onnxruntime-android-1.22.0.aar jni/x86_64/libonnxruntime.so | sha256sum
+# ... etc. for each ABI
+```
+
+Until Q4 is decided, the plan cannot be marked `Investigated` — it would leave an architectural security choice unresolved in the implementation.
+
+**Open questions**
+
+- [x] Q4 — SHA-256 verification target (extracted `.so` vs. AAR). Based on the code review above, the current implementation verifies the extracted `.so` only and does not checksum the downloaded AAR. Decide: (a) accept the current approach with a documented rationale, or (b) add a pre-extraction AAR checksum step as described above. Option (b) is the recommended supply-chain posture.
+  _Decision: Two-level verification adopted. Verify the AAR against the Maven
+  Central `.aar.sha256` sidecar before extraction, and retain the existing
+  per-ABI `.so` checksum. `_ensureFile` gains an optional `archiveSha256`
+  parameter; Phase 1 implementation steps updated accordingly._
+
+### Review 3: 2026-06-10
+
+**Q4 resolved — all questions closed — status set to `Investigated`.**
+
+The user adopted option (b): two-level verification. The decision is recorded above in both the `## Open questions` section and in the Review 2 open-questions block.
+
+**Implementation plan changes made in this pass:**
+
+Phase 1 has been expanded with the full sequence required to execute the two-level verification decision:
+
+1. Download the AAR and compute its SHA-256, cross-checked against Maven Central's `.aar.sha256` sidecar.
+2. Compute per-ABI `.so` SHA-256 digests (all four ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`).
+3. Add the archive-level digest to `_sha256Manifest` (or a parallel map) under a distinct key (`'onnxruntime-android-1.22.0.aar.archive'`).
+4. Replace the all-zeros per-ABI `.so` placeholders.
+5. Add an optional `archiveSha256` parameter to `_ensureFile`. The implementation should: (a) check archive bytes against this digest immediately after download, before calling `_extractFromArchive`; (b) apply the same all-zeros bypass as the existing per-file check so the dev-time placeholder regime is consistent.
+6. Cache-clear step: delete `.dart_tool/betto_onnxrt/{version}/android/` and re-run the hook to confirm both verification gates fire end-to-end.
+
+**One implementation note for the implementer:** `_ensureFile` currently holds the downloaded `archiveBytes` in memory only for the duration of extraction. Passing `archiveSha256` as a named parameter keeps the function signature additive (no existing callers break — they simply omit the parameter and get the existing single-level behaviour). The all-zeros bypass must cover both the archive check and the inner-file check independently, because during the transition period a developer may have a real archive digest but a placeholder `.so` digest (or vice versa) depending on which checksums were filled in first.
+
+**No remaining open questions.** Q1 (URL confirmation) and Q2 (emulator ABI default) remain open in the top-level `## Open questions` section — these are resolved during implementation (Q1 is confirmed by a successful download in Phase 1; Q2 is recorded in the Makefile variable once the developer chooses the emulator). They do not block the implementation from starting.
+
+**Status: `Investigated`.** The plan is ready for implementation via `plan-implement`.
