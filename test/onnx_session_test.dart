@@ -247,4 +247,68 @@ void main() {
       },
     );
   });
+
+  // KNOWN: cross-isolate use is UB — not automated; documented in OnnxSession
+  // class docstring. Calling run() or dispose() from isolate B on a session
+  // created in isolate A triggers undefined behaviour at the ORT level (mutex
+  // corruption or silent wrong output), which is unsafe to exercise in CI.
+  // Only the same-isolate sequential positive contract is verified here.
+  group('OnnxSession — thread affinity', () {
+    late OnnxRuntime runtime;
+
+    setUp(() async {
+      if (!ortAvailable) return;
+      runtime = await OnnxRuntime.load();
+    });
+
+    tearDown(() {
+      if (!ortAvailable) return;
+      runtime.dispose();
+    });
+
+    test(
+      'three sequential run() calls on the same isolate all return correct '
+      'results',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // Verifies the same-isolate sequential contract: a single session may
+        // be called multiple times from the isolate that created it without
+        // error or result corruption.
+        //
+        // The identity_float32.onnx fixture is deterministic: run() on
+        // [1.0, 2.0, 3.0, 4.0] always returns [1.0, 2.0, 3.0, 4.0]
+        // (float32 output — the model passes the input directly to the output).
+        final session = runtime.createSessionFromFile(_fixtureModelPath);
+        addTearDown(session.dispose);
+
+        final inputData = Float32List.fromList([1.0, 2.0, 3.0, 4.0]);
+        final expectedOutput = [1.0, 2.0, 3.0, 4.0];
+
+        for (var i = 0; i < 3; i++) {
+          final input = OnnxTensor.fromFloat32([1, 4], inputData);
+          final outputs = session.run(
+            inputs: {'input': input},
+            outputNames: ['output'],
+          );
+
+          expect(outputs, hasLength(1), reason: 'run $i: expected 1 output');
+          expect(
+            outputs[0].elementType,
+            equals(OnnxElementType.float32),
+            reason: 'run $i: expected float32 output',
+          );
+          expect(
+            outputs[0].shape,
+            equals([1, 4]),
+            reason: 'run $i: expected shape [1, 4]',
+          );
+          expect(
+            outputs[0].asFloat32(),
+            equals(expectedOutput),
+            reason: 'run $i: expected identity output',
+          );
+        }
+      },
+    );
+  });
 }

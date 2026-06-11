@@ -1,6 +1,6 @@
 # Testing Pipeline: Linux/Windows Targets, Vtable Guard, Isolate Test
 
-**Status**: Implementing
+**Status**: Complete
 
 **PR link**: _pending_
 
@@ -263,17 +263,17 @@ be strengthened to explicitly name the failure mode.
 
 ### Phase 1 — Fix comment drift in `session.dart`
 
-- [ ] Fix `OnnxSession.run()` *method* docstring (`session.dart:320`): change
+- [x] Fix `OnnxSession.run()` *method* docstring (`session.dart:320`): change
       `(vtable slots 31/32/33)` to `(vtable slots 65/61/62)`.
       (The *class* docstring at line 57 is already correct — do not touch it.)
-- [ ] Fix inline comment at line 425: change `(slot 31)` to `(slot 65)`.
-- [ ] Fix inline comment at line 430: change `(slot 32)` to `(slot 61)`.
-- [ ] Fix inline comment at line 435: change `(slot 33)` to `(slot 62)`.
-- [ ] Confirm `make analyze` and `make format_check` pass.
+- [x] Fix inline comment at line 425: change `(slot 31)` to `(slot 65)`.
+- [x] Fix inline comment at line 430: change `(slot 32)` to `(slot 61)`.
+- [x] Fix inline comment at line 435: change `(slot 33)` to `(slot 62)`.
+- [x] Confirm `make analyze` and `make format_check` pass.
 
 ### Phase 2 — Add `// SLOT:Name=N` markers and guard test
 
-- [ ] Add a `// SLOT:Name=N` annotation immediately before each bound typedef
+- [x] Add a `// SLOT:Name=N` annotation immediately before each bound typedef
       pair in `lib/src/ort_api.dart` for all 24 slots in the golden table
       (Investigation section). Example:
       ```dart
@@ -283,40 +283,43 @@ be strengthened to explicitly name the failure mode.
       ```
       Keep the existing `// slot N: OrtStatus* Symbol(...)` prose comments —
       the SLOT marker is an additional machine-readable line, not a replacement.
-- [ ] Create `test/ort_slot_guard_test.dart` with the Apache 2.0 header.
-- [ ] Declare `const Map<String, int> _expectedSlotsV22` using the table
+      Note: IsTensor=50 and GetErrorCode=1 were listed in the plan's golden
+      table but have no typedef pairs in the file (marked [unused]); they were
+      correctly excluded from markers and the golden in the test.
+- [x] Create `test/ort_slot_guard_test.dart` with the Apache 2.0 header.
+- [x] Declare `const Map<String, int> _expectedSlotsV22` using the table
       from the Investigation section.
-- [ ] Read `lib/src/ort_api.dart` as text (use `File` relative to
+- [x] Read `lib/src/ort_api.dart` as text (use `File` relative to
       `Directory.current`, matching the `_packageRoot()` pattern in
       `onnx_session_test.dart`).
-- [ ] Extract `SLOT:(\w+)=(\d+)` pairs with a regex — this is unambiguous
+- [x] Extract `SLOT:(\w+)=(\d+)` pairs with a regex — this is unambiguous
       and cannot produce false matches from existing comments or code.
-- [ ] Assert extracted map equals `_expectedSlotsV22`.
-- [ ] Confirm `make test`, `make analyze`, `make format_check`, and
+- [x] Assert extracted map equals `_expectedSlotsV22`.
+- [x] Confirm `make test`, `make analyze`, `make format_check`, and
       `make license_check` pass.
-- [ ] Add a note to the `lib/src/ort_api.dart` file-level docstring: the
+- [x] Add a note to the `lib/src/ort_api.dart` file-level docstring: the
       `// SLOT:Name=N` markers are checked by `test/ort_slot_guard_test.dart`;
       any PR editing slot numbers or bumping `ortApiVersion` must include
       evidence of a passing `make macos_test` (or `make linux_test`) run.
-- [ ] Add the same guidance to `CLAUDE.md` under "Key conventions".
+- [x] Add the same guidance to `CLAUDE.md` under "Key conventions".
 
 ### Phase 3 — Add isolate thread-affinity test
 
-- [ ] Add a `group('OnnxSession — thread affinity', ...)` block to
+- [x] Add a `group('OnnxSession — thread affinity', ...)` block to
       `test/onnx_session_test.dart`.
-- [ ] Test calls `session.run()` three times sequentially from the same
+- [x] Test calls `session.run()` three times sequentially from the same
       isolate and asserts all outputs match `[1.0, 2.0, 3.0, 4.0]`.
-- [ ] Add a `// KNOWN: cross-isolate use is UB — not automated` comment above
+- [x] Add a `// KNOWN: cross-isolate use is UB — not automated` comment above
       the group.
-- [ ] Strengthen the `OnnxSession` class docstring in `session.dart` to name
+- [x] Strengthen the `OnnxSession` class docstring in `session.dart` to name
       the failure mode: "Calling `run()` or `dispose()` from a different
       isolate can corrupt ORT's internal thread-pool mutex state and produce
       undefined behaviour (crash or silent wrong output)."
-- [ ] Confirm `make test` passes (test skips gracefully when ORT is not staged).
+- [x] Confirm `make test` passes (test skips gracefully when ORT is not staged).
 
 ### Phase 4 — Add `linux_test` and `windows_test` Makefile targets
 
-- [ ] Add `linux_test` to `Makefile` (note the `v`-prefix strip, matching
+- [x] Add `linux_test` to `Makefile` (note the `v`-prefix strip, matching
       `cicd_linux` line 42):
   ```makefile
   # Run ORT inference tests on Linux (pure Dart — does not require Flutter).
@@ -330,7 +333,7 @@ be strengthened to explicitly name the failure mode.
   	  dart test test/onnx_session_test.dart
   .PHONY: linux_test
   ```
-- [ ] Add `windows_test` to `Makefile` (local-convenience target only — no
+- [x] Add `windows_test` to `Makefile` (local-convenience target only — no
       CI step; `cicd_windows` already runs real inference):
   ```makefile
   # Run ORT inference tests on Windows (pure Dart — does not require Flutter).
@@ -342,9 +345,9 @@ be strengthened to explicitly name the failure mode.
   	dart test test/onnx_session_test.dart
   .PHONY: windows_test
   ```
-- [ ] No CI workflow change needed for `windows_test` — `cicd_windows` already
+- [x] No CI workflow change needed for `windows_test` — `cicd_windows` already
       exercises real ORT inference via `dart test`.
-- [ ] Create `docs/manual_checks.md` with a Flutter Desktop smoke checklist
+- [x] Create `docs/manual_checks.md` with a Flutter Desktop smoke checklist
       covering: Flutter stable channel and version at time of check;
       prerequisites (`dart pub get` already run, Flutter Desktop toolchain
       installed); commands for Linux (`--device-id linux`) and Windows
@@ -356,21 +359,21 @@ be strengthened to explicitly name the failure mode.
 
 ### Phase 5 — Update roadmap and docs
 
-- [ ] Rewrite `docs/spec/README.md:602-608` ("Windows and Linux integration
+- [x] Rewrite `docs/spec/README.md:602-608` ("Windows and Linux integration
       testing"): remove the claims that the targets "are not yet defined" and
       "No Windows or Linux machines are currently available." Replace with a
       description of the current state: `make linux_test` and `make windows_test`
       are defined; real ORT inference already runs on both platforms in CI via
       `cicd_linux` and `cicd_windows`; Flutter Desktop automation on both
       platforms remains out of scope for v0 (see `docs/manual_checks.md`).
-- [ ] Mark "Linux and Windows integration tests" item complete in
+- [x] Mark "Linux and Windows integration tests" item complete in
       `docs/roadmap/v0.md` (update `[ ]` to `[x]` and add a Resolved section).
-- [ ] Mark "ORT vtable-slot guard test" item complete in `docs/roadmap/v0.md`.
-- [ ] Mark "Isolate thread-affinity test" item complete in
+- [x] Mark "ORT vtable-slot guard test" item complete in `docs/roadmap/v0.md`.
+- [x] Mark "Isolate thread-affinity test" item complete in
       `docs/roadmap/v0.md`.
-- [ ] Update Goal 4 completion percentage from 20% to 100% in the roadmap
+- [x] Update Goal 4 completion percentage from 20% to 100% in the roadmap
       summary table.
-- [ ] Confirm `make pre_commit` passes end-to-end.
+- [x] Confirm `make pre_commit` passes end-to-end.
 
 ## Reviews
 
@@ -646,4 +649,42 @@ that first.
 
 ## Summary
 
-_To be filled in on completion._
+- **Phase 1 — Comment drift fixed**: `OnnxSession.run()` method docstring and
+  three inline comments in `session.dart` corrected from `(slot 31/32/33)` to
+  `(slot 65/61/62)`. Class docstring at line 57 was already correct and was not
+  touched.
+
+- **Phase 2 — ORT vtable-slot guard**: Added `// SLOT:Name=N` markers to all
+  22 bound typedef pairs in `lib/src/ort_api.dart`. Created
+  `test/ort_slot_guard_test.dart` with a golden table for ORT API v22; the test
+  reads `ort_api.dart` as text, extracts `SLOT:(\w+)=(\d+)` pairs, and asserts
+  they match the golden. Updated the `ort_api.dart` file-level docstring and
+  `CLAUDE.md` with PR-enforcement guidance: any PR editing slot indices or
+  bumping `ortApiVersion` must include evidence of a passing `make macos_test`
+  or `make linux_test` run.
+
+  Deviation from plan: the plan's golden listed 24 entries including
+  `IsTensor=50` and `GetErrorCode=1`, but both are marked `[unused — not bound]`
+  in `ort_api.dart` with no typedef pairs. The golden was corrected to 22
+  entries matching the actual bound typedefs.
+
+- **Phase 3 — Isolate thread-affinity test**: Added
+  `group('OnnxSession — thread affinity', ...)` to `test/onnx_session_test.dart`
+  with a three-run sequential positive test on the same isolate. Added `// KNOWN`
+  comment documenting why the cross-isolate negative path is not automated.
+  Strengthened `OnnxSession` class docstring to name the failure mode explicitly.
+
+- **Phase 4 — Linux/Windows Makefile targets and manual checklist**: Added
+  `make linux_test` (with `v`-prefix strip matching `cicd_linux`) and
+  `make windows_test` (local-convenience only; no CI step needed) to the
+  Makefile. Created `docs/manual_checks.md` covering Flutter Desktop smoke
+  testing with: Flutter channel/version, load-verification steps, failure
+  signatures, and evidence recording instructions.
+
+- **Phase 5 — Spec and roadmap updated**: Rewrote `docs/spec/README.md`
+  "Windows and Linux integration testing" section to reflect the new targets and
+  existing CI inference. Marked three roadmap items complete in
+  `docs/roadmap/v0.md` and updated Goal 4 from 20% to 100%.
+
+- All 74 tests pass; 7 ORT-binary tests skip gracefully when binary not staged.
+  Zero analyzer issues. `make pre_commit` passes end-to-end.

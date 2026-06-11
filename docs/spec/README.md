@@ -601,8 +601,21 @@ records what ORT version the SPM shim links.
 
 ### Windows and Linux integration testing
 
-No Windows or Linux machines are currently available for on-device integration
-testing. Desktop support is implemented and the build hook emits the correct
-binaries, but end-to-end integration tests (`make windows_test`,
-`make linux_test`) are not yet defined. Contributions and CI runner access for
-these platforms are welcome.
+Pure-Dart ORT inference is exercised automatically in CI on both platforms:
+
+- **Linux** (`build` job in `.github/workflows/cicd.yml`): `cicd_linux` runs
+  `dart pub get`, creates the unversioned `libonnxruntime.so` symlink, exports
+  `LD_LIBRARY_PATH`, then calls `dart test` — including `onnx_session_test.dart`
+  against the real ORT binary. `make linux_test` is the analogous local target
+  for running only the ORT inference tests in isolation.
+- **Windows** (`test-windows` job): `cicd_windows` runs `dart pub get` (which
+  stages `onnxruntime.dll`) and `dart test` — including `onnx_session_test.dart`
+  against the real DLL. `make windows_test` is the analogous local convenience
+  target; it assumes `PATH` already includes the ORT DLL directory (as the CI
+  pipeline sets up in the "Add ORT DLL directory to PATH" step).
+
+Flutter Desktop automation on Linux and Windows remains out of scope for v0.
+The written manual smoke checklist at `docs/manual_checks.md` covers this gap
+with the detail needed for a trustworthy non-automated check: Flutter
+channel/version, load-verification steps, failure signatures, and where to
+record evidence in the PR description.

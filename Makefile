@@ -66,6 +66,34 @@ macos_test:
 	  flutter test integration_test/onnxrt_test.dart --device-id macos
 .PHONY: macos_test
 
+# Run ORT inference tests on Linux (pure Dart — does not require Flutter).
+# Requires dart pub get to have been run (ORT binary staged in cache).
+# Strips the leading 'v' from VERSION_ONNX to match the cache directory name
+# (e.g. v1.22.0 → 1.22.0), identical to the strip done in cicd_linux.
+# In CI, cicd_linux already exercises real ORT inference — this target is for
+# local developer use and isolated inference-only runs.
+# Usage: make linux_test
+linux_test:
+	@ORT_VER=$$(cat VERSION_ONNX); \
+	  ORT_VER=$${ORT_VER#v}; \
+	  ORT_CACHE=".dart_tool/betto_onnxrt/$$ORT_VER"; \
+	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
+	  export LD_LIBRARY_PATH="$$(pwd)/$$ORT_CACHE$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}"; \
+	  dart test test/onnx_session_test.dart
+.PHONY: linux_test
+
+# Run ORT inference tests on Windows (pure Dart — does not require Flutter).
+# Requires dart pub get to have been run and .dart_tool/betto_onnxrt/{ver}/
+# to be on PATH so DynamicLibrary.open('onnxruntime.dll') succeeds.
+# Set PATH manually before calling this target (CI does this automatically
+# in the 'Add ORT DLL directory to PATH' step before make cicd_windows).
+# In CI, cicd_windows already runs dart test (including onnx_session_test.dart)
+# against the real DLL — this target is for local developer use only.
+# Usage: make windows_test
+windows_test:
+	dart test test/onnx_session_test.dart
+.PHONY: windows_test
+
 # Run integration tests on a connected iOS simulator.
 # This is the primary tool for the Phase 1 iOS XCFramework spike (Q1).
 # Requires Xcode and a simulator reachable via `flutter devices`.

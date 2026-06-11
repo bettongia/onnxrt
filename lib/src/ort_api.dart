@@ -20,11 +20,22 @@
 /// a version drift in the ORT header (`onnxruntime_c_api.h`) will produce a
 /// noticeable mismatch that is easy to diagnose.
 ///
+/// ## Machine-readable slot markers
+///
+/// Every bound typedef pair is preceded by a `// SLOT:Name=N` annotation line
+/// (e.g. `// SLOT:CreateEnv=3`). These markers are parsed and cross-checked by
+/// `test/ort_slot_guard_test.dart` against a golden table for ORT API v22.
+/// The guard test catches comment drift but **cannot replace a real
+/// load+inference run** when slot numbers change. Any PR that edits slot
+/// indices or bumps [ortApiVersion] must include evidence of a passing
+/// `make macos_test` (or `make linux_test`) run in the PR description.
+///
 /// This file is the single source of truth for ORT versioning in
 /// `betto_onnxrt`. To upgrade ORT:
 /// 1. Update `VERSION_ONNX` and re-run `dart run tool/generate_versions.dart`.
 /// 2. Verify the slot indices below still match the new header.
 /// 3. Update `ortApiVersion` to the new API version constant.
+/// 4. Update `_expectedSlotsV22` in `test/ort_slot_guard_test.dart`.
 library;
 
 import 'dart:ffi';
@@ -78,15 +89,18 @@ typedef GetApiDart = Pointer<Void> Function(int);
 // the new onnxruntime_c_api.h header.
 
 // slot 0: OrtStatus* CreateStatus(OrtErrorCode, const char*)
+// SLOT:CreateStatus=0
 typedef CreateStatusC = Pointer<OrtStatus> Function(Int32, Pointer<Utf8>);
 typedef CreateStatusDart = Pointer<OrtStatus> Function(int, Pointer<Utf8>);
 
 // slot 1: OrtErrorCode GetErrorCode(const OrtStatus*)  [unused — not bound]
 // slot 2: const char* GetErrorMessage(const OrtStatus*)
+// SLOT:GetErrorMessage=2
 typedef GetErrorMessageC = Pointer<Utf8> Function(Pointer<OrtStatus>);
 typedef GetErrorMessageDart = Pointer<Utf8> Function(Pointer<OrtStatus>);
 
 // slot 3: OrtStatus* CreateEnv(OrtLoggingLevel, const char*, OrtEnv**)
+// SLOT:CreateEnv=3
 typedef CreateEnvC =
     Pointer<OrtStatus> Function(Int32, Pointer<Utf8>, Pointer<Pointer<OrtEnv>>);
 typedef CreateEnvDart =
@@ -96,6 +110,7 @@ typedef CreateEnvDart =
 //            DisableTelemetryEvents  [all unused]
 
 // slot 7: OrtStatus* CreateSession(const OrtEnv*, const char*, const OrtSessionOptions*, OrtSession**)
+// SLOT:CreateSession=7
 typedef CreateSessionC =
     Pointer<OrtStatus> Function(
       Pointer<OrtEnv>,
@@ -112,6 +127,7 @@ typedef CreateSessionDart =
     );
 
 // slot 8: OrtStatus* CreateSessionFromArray(const OrtEnv*, const void*, size_t, const OrtSessionOptions*, OrtSession**)
+// SLOT:CreateSessionFromArray=8
 typedef CreateSessionFromArrayC =
     Pointer<OrtStatus> Function(
       Pointer<OrtEnv>,
@@ -130,6 +146,7 @@ typedef CreateSessionFromArrayDart =
     );
 
 // slot 9: OrtStatus* Run(OrtSession*, const OrtRunOptions*, const char* const*, const OrtValue* const*, size_t, const char* const*, size_t, OrtValue**)
+// SLOT:Run=9
 typedef RunC =
     Pointer<OrtStatus> Function(
       Pointer<OrtSession>,
@@ -154,6 +171,7 @@ typedef RunDart =
     );
 
 // slot 10: OrtStatus* CreateSessionOptions(OrtSessionOptions**)
+// SLOT:CreateSessionOptions=10
 typedef CreateSessionOptionsC =
     Pointer<OrtStatus> Function(Pointer<Pointer<OrtSessionOptions>>);
 typedef CreateSessionOptionsDart =
@@ -164,12 +182,14 @@ typedef CreateSessionOptionsDart =
 // slot 24: OrtStatus* SetIntraOpNumThreads(OrtSessionOptions*, int)
 // Forces single-threaded intra-op execution, avoiding thread-pool teardown
 // races when ORT is invoked from a single Dart isolate.
+// SLOT:SetIntraOpNumThreads=24
 typedef SetIntraOpNumThreadsC =
     Pointer<OrtStatus> Function(Pointer<OrtSessionOptions>, Int32);
 typedef SetIntraOpNumThreadsDart =
     Pointer<OrtStatus> Function(Pointer<OrtSessionOptions>, int);
 
 // slot 25: OrtStatus* SetInterOpNumThreads(OrtSessionOptions*, int)
+// SLOT:SetInterOpNumThreads=25
 typedef SetInterOpNumThreadsC =
     Pointer<OrtStatus> Function(Pointer<OrtSessionOptions>, Int32);
 typedef SetInterOpNumThreadsDart =
@@ -183,6 +203,7 @@ typedef SetInterOpNumThreadsDart =
 //  48: CreateTensorAsOrtValue)
 
 // slot 49: OrtStatus* CreateTensorWithDataAsOrtValue(const OrtMemoryInfo*, void*, size_t, const int64_t*, size_t, ONNXTensorElementDataType, OrtValue**)
+// SLOT:CreateTensorWithDataAsOrtValue=49
 typedef CreateTensorC =
     Pointer<OrtStatus> Function(
       Pointer<OrtMemoryInfo>,
@@ -207,6 +228,7 @@ typedef CreateTensorDart =
 // slot 50: IsTensor  [unused]
 
 // slot 51: OrtStatus* GetTensorMutableData(OrtValue*, void**)
+// SLOT:GetTensorMutableData=51
 typedef GetTensorMutableDataC =
     Pointer<OrtStatus> Function(Pointer<OrtValue>, Pointer<Pointer<Void>>);
 typedef GetTensorMutableDataDart =
@@ -217,6 +239,7 @@ typedef GetTensorMutableDataDart =
 //              SetTensorElementType, SetDimensions, GetTensorElementType  [all unused]
 
 // slot 61: OrtStatus* GetDimensionsCount(const OrtTensorTypeAndShapeInfo*, size_t*)
+// SLOT:GetDimensionsCount=61
 typedef GetDimensionsCountC =
     Pointer<OrtStatus> Function(
       Pointer<OrtTensorTypeAndShapeInfo>,
@@ -229,6 +252,7 @@ typedef GetDimensionsCountDart =
     );
 
 // slot 62: OrtStatus* GetDimensions(const OrtTensorTypeAndShapeInfo*, int64_t*, size_t)
+// SLOT:GetDimensions=62
 typedef GetDimensionsC =
     Pointer<OrtStatus> Function(
       Pointer<OrtTensorTypeAndShapeInfo>,
@@ -245,6 +269,7 @@ typedef GetDimensionsDart =
 // slots 63–64: GetSymbolicDimensions, GetTensorShapeElementCount  [unused]
 
 // slot 65: OrtStatus* GetTensorTypeAndShape(const OrtValue*, OrtTensorTypeAndShapeInfo**)
+// SLOT:GetTensorTypeAndShape=65
 typedef GetTensorTypeAndShapeC =
     Pointer<OrtStatus> Function(
       Pointer<OrtValue>,
@@ -259,6 +284,7 @@ typedef GetTensorTypeAndShapeDart =
 // slots 66–68: GetTypeInfo, GetValueType, CreateMemoryInfo  [unused]
 
 // slot 69: OrtStatus* CreateCpuMemoryInfo(enum OrtAllocatorType, enum OrtMemType, OrtMemoryInfo**)
+// SLOT:CreateCpuMemoryInfo=69
 typedef CreateMemoryInfoC =
     Pointer<OrtStatus> Function(Int32, Int32, Pointer<Pointer<OrtMemoryInfo>>);
 typedef CreateMemoryInfoDart =
@@ -268,22 +294,27 @@ typedef CreateMemoryInfoDart =
 
 // Release functions (return void, not OrtStatus*)
 // slot 92: void ReleaseEnv(OrtEnv*)
+// SLOT:ReleaseEnv=92
 typedef ReleaseEnvC = Void Function(Pointer<OrtEnv>);
 typedef ReleaseEnvDart = void Function(Pointer<OrtEnv>);
 
 // slot 93: void ReleaseStatus(OrtStatus*)
+// SLOT:ReleaseStatus=93
 typedef ReleaseStatusC = Void Function(Pointer<OrtStatus>);
 typedef ReleaseStatusDart = void Function(Pointer<OrtStatus>);
 
 // slot 94: void ReleaseMemoryInfo(OrtMemoryInfo*)
+// SLOT:ReleaseMemoryInfo=94
 typedef ReleaseMemoryInfoC = Void Function(Pointer<OrtMemoryInfo>);
 typedef ReleaseMemoryInfoDart = void Function(Pointer<OrtMemoryInfo>);
 
 // slot 95: void ReleaseSession(OrtSession*)
+// SLOT:ReleaseSession=95
 typedef ReleaseSessionC = Void Function(Pointer<OrtSession>);
 typedef ReleaseSessionDart = void Function(Pointer<OrtSession>);
 
 // slot 96: void ReleaseValue(OrtValue*)
+// SLOT:ReleaseValue=96
 typedef ReleaseValueC = Void Function(Pointer<OrtValue>);
 typedef ReleaseValueDart = void Function(Pointer<OrtValue>);
 
@@ -291,12 +322,14 @@ typedef ReleaseValueDart = void Function(Pointer<OrtValue>);
 // slots 98–99: various functions we don't use
 
 // slot 99: void ReleaseTensorTypeAndShapeInfo(OrtTensorTypeAndShapeInfo*)
+// SLOT:ReleaseTensorTypeAndShapeInfo=99
 typedef ReleaseTensorTypeAndShapeInfoC =
     Void Function(Pointer<OrtTensorTypeAndShapeInfo>);
 typedef ReleaseTensorTypeAndShapeInfoDart =
     void Function(Pointer<OrtTensorTypeAndShapeInfo>);
 
 // slot 100: void ReleaseSessionOptions(OrtSessionOptions*)
+// SLOT:ReleaseSessionOptions=100
 typedef ReleaseSessionOptionsC = Void Function(Pointer<OrtSessionOptions>);
 typedef ReleaseSessionOptionsDart = void Function(Pointer<OrtSessionOptions>);
 

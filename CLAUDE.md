@@ -117,4 +117,12 @@ with the user before proceeding.
 
 **Plans**: Implementation plans live in `docs/plans/`. New work is done on a git branch using a worktree in `.worktrees/`. See `docs/plans/README.md` for the full workflow and plan template.
 
+**ORT vtable slot integrity**: Every bound typedef pair in `lib/src/ort_api.dart`
+carries a `// SLOT:Name=N` marker (e.g. `// SLOT:CreateEnv=3`). These markers
+are parsed and cross-checked by `test/ort_slot_guard_test.dart` against a golden
+table for ORT API v22. The guard catches comment drift but **cannot replace a
+real load+inference run**. Any PR that edits slot indices, adds or removes bound
+typedefs, or bumps `ortApiVersion` must include evidence of a passing
+`make macos_test` (or `make linux_test`) run in the PR description.
+
 **License**: All `.dart` files must carry the Apache 2.0 header. `make license_check` / `make license_add` use `addlicense` with the config in `addlicense_config.txt`. Generated files and YAML/config files are excluded.

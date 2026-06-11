@@ -42,11 +42,11 @@ import 'tensor.dart';
 /// ## Thread safety
 ///
 /// **Thread-affine.** All calls to [run] and [dispose] must come from the
-/// same Dart isolate that created the session. ORT maintains an internal
-/// thread pool per environment; releasing a session from a different isolate
-/// can corrupt that pool's mutex state. If you need isolate-based parallelism,
-/// create a fresh [OnnxRuntime] (and therefore a fresh ORT environment) inside
-/// each isolate.
+/// same Dart isolate that created the session. Calling [run] or [dispose] from
+/// a different isolate can corrupt ORT's internal thread-pool mutex state and
+/// produce undefined behaviour (crash or silent wrong output). If you need
+/// isolate-based parallelism, create a fresh [OnnxRuntime] (and therefore a
+/// fresh ORT environment) inside each isolate.
 ///
 /// ## Input / output model
 ///
@@ -316,7 +316,7 @@ final class OnnxSession {
   ///
   /// Each output [OnnxTensor] has its [OnnxTensor.shape] populated from the
   /// native output via [GetTensorTypeAndShapeInfo] / [GetDimensionsCount] /
-  /// [GetDimensions] (vtable slots 31/32/33). This allows callers to reshape
+  /// [GetDimensions] (vtable slots 65/61/62). This allows callers to reshape
   /// output data without knowing the model's output shape in advance.
   ///
   /// All native [OrtValue] handles are released before returning.
@@ -422,17 +422,17 @@ final class OnnxSession {
       for (var i = 0; i < outputNames.length; i++) {
         final outVal = outputValPtrs[i];
 
-        // Read the output shape via GetTensorTypeAndShapeInfo (slot 31).
+        // Read the output shape via GetTensorTypeAndShapeInfo (slot 65).
         final ttasiPtr = arena<Pointer<OrtTensorTypeAndShapeInfo>>();
         check(getTypeShape(outVal, ttasiPtr));
         final ttasi = ttasiPtr.value;
 
-        // GetDimensionsCount (slot 32): number of dimensions.
+        // GetDimensionsCount (slot 61): number of dimensions.
         final dimCountPtr = arena<Size>();
         check(getDimCount(ttasi, dimCountPtr));
         final dimCount = dimCountPtr.value;
 
-        // GetDimensions (slot 33): dimension sizes as int64 array.
+        // GetDimensions (slot 62): dimension sizes as int64 array.
         final dimBuf = arena<Int64>(dimCount);
         check(getDims(ttasi, dimBuf, dimCount));
         final shape = List<int>.generate(dimCount, (d) => dimBuf[d]);
