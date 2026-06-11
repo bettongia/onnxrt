@@ -91,9 +91,9 @@ jobs:
       # DynamicLibrary.open('onnxruntime.dll') find it in dart test (JIT mode).
       - name: Add ORT DLL directory to PATH (Windows)
         run: |
-          $ORT_VER = (Get-Content VERSION_ONNX).Trim()
+          $ORT_VER = (Get-Content VERSION_ONNX).Trim() -replace '^v', ''
           $ORT_CACHE = ".dart_tool\betto_onnxrt\$ORT_VER"
-          $AbsPath = (Resolve-Path $ORT_CACHE).Path
+          $AbsPath = Join-Path (Get-Location).Path $ORT_CACHE
           "$AbsPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: pwsh
 

@@ -39,7 +39,9 @@ cicd_linux:
 	dart pub get
 	$(MAKE) --no-print-directory license_check format_check analyze
 	@ORT_VER=$$(cat VERSION_ONNX); \
+	  ORT_VER=$${ORT_VER#v}; \
 	  ORT_CACHE=".dart_tool/betto_onnxrt/$$ORT_VER"; \
+	  mkdir -p "$$ORT_CACHE"; \
 	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
 	  export LD_LIBRARY_PATH="$$(pwd)/$$ORT_CACHE$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}"; \
 	  dart test && \
