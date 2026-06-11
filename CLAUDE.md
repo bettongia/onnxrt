@@ -89,7 +89,7 @@ A separate Flutter app used for on-device integration tests. It is excluded from
 
 ## Key conventions
 
-**ORT version**: Controlled by `VERSION_ONNX` at the repo root. After bumping it, run `dart run tool/generate_versions.dart` to regenerate `lib/src/generated/versions.g.dart`. Also update `version_onnx.json` with new `version`, `url`, and `sha256` fields for every platform. Note the prefix convention: `VERSION_ONNX` uses a `v` prefix (e.g. `v1.22.0`); `version_onnx.json` platform `version` fields use the bare version without `v` (e.g. `1.22.0`). The hook cache directory is `.dart_tool/betto_onnxrt/{bare_version}/` — CI scripts strip the `v` when computing this path.
+**ORT version**: Controlled by `VERSION_ONNX` at the repo root. After bumping it, run `dart run tool/generate_versions.dart` to regenerate `lib/src/generated/versions.g.dart`. Also update `version_onnx.json` with new `version`, `url`, and `sha256` fields for every platform. Note the prefix convention: `VERSION_ONNX` uses a `v` prefix (e.g. `v1.22.0`); `version_onnx.json` platform `version` fields use the bare version without `v` (e.g. `1.22.0`). Platform versions may also differ from `VERSION_ONNX` (e.g. Windows uses `1.22.1` as a patch release). The hook cache directory is `.dart_tool/betto_onnxrt/{platform_version}/` — CI scripts read the version from `version_onnx.json` per platform, not from `VERSION_ONNX`.
 
 **OnnxSession tests** (`test/onnx_session_test.dart`) auto-skip when the ORT binary is not staged. They require the hook to have previously run and produced a cached artifact at `.dart_tool/betto_onnxrt/{version}/`.
 

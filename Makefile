@@ -38,8 +38,7 @@ cicd_linux:
 	dart pub global activate coverage
 	dart pub get
 	$(MAKE) --no-print-directory license_check format_check analyze
-	@ORT_VER=$$(cat VERSION_ONNX); \
-	  ORT_VER=$${ORT_VER#v}; \
+	@ORT_VER=$$(python3 -c "import json,platform; m=platform.machine(); k='linux-aarch64' if m=='aarch64' else 'linux-x64'; print(json.load(open('version_onnx.json'))['platforms'][k]['version'])"); \
 	  ORT_CACHE=".dart_tool/betto_onnxrt/$$ORT_VER"; \
 	  mkdir -p "$$ORT_CACHE"; \
 	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
