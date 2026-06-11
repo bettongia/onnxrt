@@ -125,4 +125,11 @@ real load+inference run**. Any PR that edits slot indices, adds or removes bound
 typedefs, or bumps `ortApiVersion` must include evidence of a passing
 `make macos_test` (or `make linux_test`) run in the PR description.
 
+**ORTCHAR_T call-site pattern**: Any ORT slot that accepts a file-system path uses
+`ORTCHAR_T*` — `char*` (UTF-8) on POSIX, `wchar_t*` (UTF-16) on Windows. In the
+Dart FFI typedef, use `Pointer<Void>` for that parameter. At the call site, use a
+`Platform.isWindows` conditional: `path.toNativeUtf16(allocator: arena).cast<Void>()`
+on Windows and `path.toNativeUtf8(allocator: arena).cast<Void>()` on POSIX. See
+`lib/src/session.dart` (`createSessionFromFile`) for the reference implementation.
+
 **License**: All `.dart` files must carry the Apache 2.0 header. `make license_check` / `make license_add` use `addlicense` with the config in `addlicense_config.txt`. Generated files and YAML/config files are excluded.
