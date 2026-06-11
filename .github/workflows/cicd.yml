@@ -34,21 +34,9 @@ jobs:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
-      # dart pub get triggers hook/build.dart which downloads and SHA-256-verifies
-      # the ORT binary into .dart_tool/betto_onnxrt/{version}/.
-      - name: Download ORT binary (triggers build hook)
-        run: dart pub get
-
-      # dart test (JIT mode) doesn't set up the native-assets path.  Create an
-      # unversioned symlink so dlopen('libonnxruntime.so') resolves it, and
-      # export the cache directory on LD_LIBRARY_PATH for all subsequent steps.
-      - name: Expose ORT binary to dynamic linker (Linux)
-        run: |
-          ORT_VER=$(cat VERSION_ONNX)
-          ORT_CACHE=".dart_tool/betto_onnxrt/$ORT_VER"
-          ln -sf "libonnxruntime.so.$ORT_VER" "$ORT_CACHE/libonnxruntime.so"
-          echo "LD_LIBRARY_PATH=$(pwd)/$ORT_CACHE" >> "$GITHUB_ENV"
-
+      # cicd_linux is self-contained: it runs dart pub get (triggering the build
+      # hook to download the ORT binary), creates the unversioned symlink, exports
+      # LD_LIBRARY_PATH, then runs the full quality gate via a sub-make.
       - run: make cicd_linux
 
   test-macos:

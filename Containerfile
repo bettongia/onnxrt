@@ -26,4 +26,4 @@ WORKDIR /home/runner/app
 
 COPY --chown=runner:runner . .
 
-CMD ["make", "cicd"]
+CMD ["make", "cicd_linux"]

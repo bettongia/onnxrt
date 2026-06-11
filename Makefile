@@ -30,7 +30,20 @@ default: clean prepare license_check format analyze test coverage doc
 cicd: default
 .PHONY: cicd
 
-cicd_linux: prepare_dart license_check format_check analyze test coverage doc
+# cicd_linux is self-contained: it downloads the ORT binary, creates the
+# unversioned symlink that dlopen('libonnxruntime.so') needs in JIT mode, and
+# exports LD_LIBRARY_PATH before delegating to the quality-gate targets via a
+# sub-make that inherits the environment.  Run locally with:
+#   make container_test   (executes inside a Podman Linux container)
+#   make cicd_linux       (runs directly on a Linux host with Dart installed)
+cicd_linux:
+	dart pub global activate coverage
+	dart pub get
+	@ORT_VER=$$(cat VERSION_ONNX); \
+	  ORT_CACHE=".dart_tool/betto_onnxrt/$$ORT_VER"; \
+	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
+	  export LD_LIBRARY_PATH="$$(pwd)/$$ORT_CACHE$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}"; \
+	  $(MAKE) --no-print-directory license_check format_check analyze test coverage doc
 .PHONY: cicd_linux
 
 cicd_macos: prepare_flutter license_check format_check analyze test coverage doc macos_test
