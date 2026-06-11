@@ -139,15 +139,32 @@ Future<void> _buildDesktop(
   );
 
   final libFile = File('${cacheDir.path}/$libFileName');
-  await _ensureFileFromArchive(
-    dest: libFile,
-    archiveName: archiveName,
-    innerPath: libPathInArchive,
-    archiveSha256: archiveSha,
-    version: version,
-    logger: logger,
-    downloadUrl: url,
-  );
+
+  if (os == OS.windows) {
+    // Windows requires onnxruntime.dll AND onnxruntime_providers_shared.dll —
+    // the main DLL has a hard import on the shared DLL, so LoadLibrary fails
+    // if only onnxruntime.dll is present. Download the archive once and
+    // extract both in a single pass.
+    await _ensureWindowsDesktopDlls(
+      cacheDir: cacheDir,
+      archiveName: archiveName,
+      archiveSha256: archiveSha,
+      version: version,
+      arch: arch,
+      logger: logger,
+      downloadUrl: url,
+    );
+  } else {
+    await _ensureFileFromArchive(
+      dest: libFile,
+      archiveName: archiveName,
+      innerPath: libPathInArchive,
+      archiveSha256: archiveSha,
+      version: version,
+      logger: logger,
+      downloadUrl: url,
+    );
+  }
 
   output.assets.code.add(
     CodeAsset(
@@ -159,6 +176,97 @@ Future<void> _buildDesktop(
   );
 
   logger.info('betto_onnxrt: emitted CodeAsset ${libFile.path}');
+}
+
+/// Extracts the Windows ORT DLLs from the distribution ZIP in a single download.
+///
+/// `onnxruntime.dll` has a hard import dependency on
+/// `onnxruntime_providers_shared.dll`; Windows `LoadLibrary` fails with
+/// error 126 ("module not found") if only the main DLL is present. Both files
+/// must live in the same directory, which must be on `PATH` at runtime.
+///
+/// Downloads [downloadUrl] once, verifies against [archiveSha256], then
+/// extracts both DLLs to [cacheDir]. A sidecar `onnxruntime.dll.sha256`
+/// records the verified archive hash so subsequent hook invocations skip the
+/// download.
+///
+/// The companion DLL extraction is wrapped in a try-catch: future ORT releases
+/// may fold `onnxruntime_providers_shared.dll` into the main DLL, in which
+/// case the file will not be present in the archive. Log a warning and continue
+/// so the hook does not break on future ORT updates.
+Future<void> _ensureWindowsDesktopDlls({
+  required Directory cacheDir,
+  required String archiveName,
+  required String archiveSha256,
+  required String version,
+  required Architecture arch,
+  required Logger logger,
+  required String downloadUrl,
+}) async {
+  final dartArch = _dartArchString(arch);
+  final mainDll = File('${cacheDir.path}/onnxruntime.dll');
+  final sharedDll = File('${cacheDir.path}/onnxruntime_providers_shared.dll');
+  final sidecar = File('${mainDll.path}.sha256');
+
+  // Fast path: main DLL, companion DLL, and sidecar all present and verified.
+  if (mainDll.existsSync() &&
+      sharedDll.existsSync() &&
+      sidecar.existsSync() &&
+      sidecar.readAsStringSync().trim() == archiveSha256) {
+    logger.info('  cached: ${mainDll.path}');
+    logger.info('  cached: ${sharedDll.path}');
+    return;
+  }
+
+  logger.info('  downloading $archiveName ...');
+  final archiveBytes = await _download(downloadUrl, logger);
+
+  final actualSha = _sha256PureDart(Uint8List.fromList(archiveBytes));
+  if (actualSha != archiveSha256) {
+    throw StateError(
+      'Archive SHA-256 mismatch for $archiveName.\n'
+      '  Expected : $archiveSha256\n'
+      '  Got      : $actualSha\n'
+      'The download may be corrupt or tampered. Delete the cache and retry, '
+      'or update version_onnx.json.',
+    );
+  }
+
+  await cacheDir.create(recursive: true);
+
+  // Extract onnxruntime.dll.
+  final mainInner = 'onnxruntime-win-$dartArch-$version/lib/onnxruntime.dll';
+  logger.info('  extracting onnxruntime.dll ...');
+  final mainBytes = _extractFromArchive(archiveBytes, archiveName, mainInner);
+  final mainTemp = File('${mainDll.path}.part');
+  await mainTemp.writeAsBytes(mainBytes, flush: true);
+  await mainTemp.rename(mainDll.path);
+  logger.info('  staged: ${mainDll.path}');
+
+  // Extract onnxruntime_providers_shared.dll.
+  final sharedInner =
+      'onnxruntime-win-$dartArch-$version/lib/onnxruntime_providers_shared.dll';
+  try {
+    logger.info('  extracting onnxruntime_providers_shared.dll ...');
+    final sharedBytes = _extractFromArchive(
+      archiveBytes,
+      archiveName,
+      sharedInner,
+    );
+    final sharedTemp = File('${sharedDll.path}.part');
+    await sharedTemp.writeAsBytes(sharedBytes, flush: true);
+    await sharedTemp.rename(sharedDll.path);
+    logger.info('  staged: ${sharedDll.path}');
+  } on StateError catch (e) {
+    // Not present in this release — future ORT versions may unify the DLLs.
+    logger.warning(
+      '  onnxruntime_providers_shared.dll not found in archive '
+      '(may not be required in this ORT version): $e',
+    );
+  }
+
+  // Write sidecar after successful main DLL extraction.
+  await sidecar.writeAsString(archiveSha256, flush: true);
 }
 
 /// Returns `(archiveName, pathInsideArchive, localLibFileName)` for desktop.
