@@ -2,7 +2,7 @@
 
 **Status**: Complete
 
-**PR link**: _pending_
+**PR link**: _n/a — landed directly on main (commit 01d4be2)_
 
 ## Problem statement
 
