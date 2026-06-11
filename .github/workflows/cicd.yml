@@ -60,11 +60,12 @@ jobs:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
-      # make cicd_macos runs: prepare_flutter (pub gets + hook) → quality gate →
-      # dart test → coverage → doc → make macos_test (Flutter integration test).
-      # The Flutter integration test is the authoritative ORT load+inference check
-      # on macOS; dart test skips OnnxSession cases in JIT mode because the
-      # macOS framework path only exists after a Flutter/AOT build.
+      # make cicd_macos runs: prepare_flutter → dart test → dart doc →
+      # macos_test (Flutter integration test). Quality gate (license, format,
+      # analyze) runs only in cicd_linux; macOS and Windows skip it to avoid
+      # redundant work. The Flutter integration test is the authoritative ORT
+      # load+inference check on macOS; dart test skips OnnxSession cases in JIT
+      # mode because the macOS framework path only exists after a Flutter/AOT build.
       - run: make cicd_macos
 
   test-windows:

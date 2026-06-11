@@ -52,10 +52,10 @@ cicd_linux:
 	dart doc
 .PHONY: cicd_linux
 
-cicd_macos: prepare_flutter license_check format_check analyze test coverage doc macos_test
+cicd_macos: prepare_flutter test doc macos_test
 .PHONY: cicd_macos
 
-cicd_windows: prepare_dart license_check format_check analyze test coverage doc
+cicd_windows: prepare_dart test
 .PHONY: cicd_windows
 
 # Run integration tests on macOS (requires the ORT dylib to be staged by the
