@@ -60,18 +60,18 @@ import 'package:test/test.dart';
 ///
 /// Returns `false` (and all OnnxSession tests are skipped) on any failure.
 bool _ortLibraryAvailable() {
+  // Hoist libName so the catch block can reference it in diagnostic output.
+  final String libName;
+  if (Platform.isMacOS) {
+    libName = 'libonnxruntime.dylib';
+  } else if (Platform.isLinux) {
+    libName = 'libonnxruntime.so';
+  } else if (Platform.isWindows) {
+    libName = 'onnxruntime.dll';
+  } else {
+    return false; // Android/iOS require full build — always skip in test.
+  }
   try {
-    // Use the same name that OnnxRuntime._openLibrary() uses for this platform.
-    final String libName;
-    if (Platform.isMacOS) {
-      libName = 'libonnxruntime.dylib';
-    } else if (Platform.isLinux) {
-      libName = 'libonnxruntime.so';
-    } else if (Platform.isWindows) {
-      libName = 'onnxruntime.dll';
-    } else {
-      return false; // Android/iOS require full build — always skip in test.
-    }
     final lib = DynamicLibrary.open(libName);
     // Verify the ORT API version matches what this package was built against.
     // Mirrors the version check in OnnxRuntime.load().
@@ -87,7 +87,12 @@ bool _ortLibraryAvailable() {
     final compatible = getApi(ortApiVersion) != nullptr;
     lib.close();
     return compatible;
-  } catch (_) {
+  } catch (e, st) {
+    // Print on CI so the exact LoadLibrary error appears in the job log.
+    if (Platform.environment.containsKey('CI')) {
+      print('[betto_onnxrt diag] DynamicLibrary.open($libName) failed: $e');
+      print('[betto_onnxrt diag] $st');
+    }
     return false;
   }
 }
@@ -129,6 +134,20 @@ void main() {
   setUpAll(() {
     final inCI = Platform.environment.containsKey('CI');
     if (inCI && (Platform.isLinux || Platform.isWindows) && !ortAvailable) {
+      // Emit diagnostics so the CI log shows exactly what went wrong.
+      final cacheRoot = Directory('${_packageRoot()}/.dart_tool/betto_onnxrt');
+      print('[betto_onnxrt diag] cache root: ${cacheRoot.path}');
+      if (cacheRoot.existsSync()) {
+        for (final e in cacheRoot.listSync(recursive: true)) {
+          print('[betto_onnxrt diag]   ${e.path}');
+        }
+      } else {
+        print('[betto_onnxrt diag]   (cache root does not exist)');
+      }
+      if (Platform.isWindows) {
+        final path = Platform.environment['PATH'] ?? '(not set)';
+        print('[betto_onnxrt diag] PATH=$path');
+      }
       fail(
         'CI: ORT binary not found on the dynamic-linker search path. '
         'Ensure LD_LIBRARY_PATH (Linux) or PATH (Windows) includes '
