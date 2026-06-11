@@ -29,7 +29,7 @@ crash-safe model-download infrastructure.
 | Linux    | Supported | `libonnxruntime.so` bundled via hook           |
 | Windows  | Supported | `onnxruntime.dll` bundled via hook             |
 | Android  | Supported | `libonnxruntime.so` bundled in APK `lib/`; requires `minSdkVersion 35` |
-| iOS      | Not supported | ORT XCFramework is a static library; Flutter iOS native-assets requires dynamic link mode. Requires the SPM plugin shim (not yet implemented). |
+| iOS      | Supported | Requires the `betto_onnxrt_ios` companion plugin. ORT is statically linked via SPM; no CocoaPods needed. |
 | Web      | Not supported | Native inference is excluded by design     |
 
 Bundles ONNX Runtime **v1.22.0**.
@@ -60,6 +60,21 @@ verified (both the archive and the extracted library), and placed in the APK
 additional Gradle dependencies or manual binary management are required.
 
 Supported ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`.
+
+### iOS
+
+Add the companion plugin alongside `betto_onnxrt`:
+
+```yaml
+dependencies:
+  betto_onnxrt: ^0.1.0
+  betto_onnxrt_ios: ^0.1.0
+```
+
+The plugin declares an SPM dependency on
+`microsoft/onnxruntime-swift-package-manager`, which causes Xcode to
+statically link the ORT XCFramework into the host app binary. No CocoaPods or
+Podfile changes are needed. Requires Flutter ≥ 3.27.0.
 
 ## Getting started
 

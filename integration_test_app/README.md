@@ -1,17 +1,32 @@
 # betto_onnxrt_test_app
 
-A new Flutter project.
+On-device integration test harness for [`betto_onnxrt`](../README.md).
 
-## Getting Started
+This app is **not published** (`publish_to: none`). It exists to verify that
+the native-assets build hook correctly stages the ORT binary and that
+`OnnxRuntime.load()` and `OnnxSession.run()` produce correct output on real
+platform targets. Unit tests in the main package cover the Dart layer; these
+tests cover the full stack including native linking.
 
-This project is a starting point for a Flutter application.
+## Running the tests
 
-A few resources to get you started if this is your first Flutter project:
+All commands are run from the **repo root** via Make:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```sh
+make macos_test    # macOS — no simulator needed
+make ios_test      # iOS simulator (boots ios-emulator automatically)
+make android_test  # Android emulator (requires a running AVD)
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+See the repo-root `Makefile` for emulator setup targets (`emulator_ios_create`,
+`emulator_android_create`) and simulator/emulator variables you can override.
+
+## Test coverage
+
+`integration_test/onnxrt_test.dart` exercises:
+
+- `OnnxRuntime.load()` — library opens without error
+- `OnnxSession` creation from in-memory bytes and from a file path
+- `OnnxSession.run()` with a bundled identity model (`assets/identity_float32.onnx`)
+- Tensor round-trip for `float32` inputs and outputs
+- Session and runtime disposal
