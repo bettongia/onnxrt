@@ -244,4 +244,45 @@ code path, which suffered from the same flaw.
 - `_windowsOrtDllPath(String packageRoot)` (new top-level helper) applies
   the same logic as the runtime helper but scoped to the test package root.
 
+**Result.** Partial success. The DLL load now works correctly — `createSession
+from bytes` passed. However, `createSessionFromFile` failed with a garbled path
+(Chinese characters in the log, e.g. `㩄慜`). Root cause: ORT's `CreateSession`
+slot 7 takes `const ORTCHAR_T*`, which is `wchar_t*` (UTF-16) on Windows, not
+`const char*` (UTF-8). The call site in `session.dart` was still passing
+`modelPath.toNativeUtf8()`, which ORT read as two-byte UTF-16 code units,
+producing mojibake for all ASCII path bytes (`44 3A 5C 61` → `D:\a` →
+`㩄慜…`). The `createSession from bytes` path avoids this bug because it
+passes a memory buffer rather than a file-system path, so it was unaffected.
+
+---
+
+### Attempt 6 — UTF-16 path encoding for Windows `CreateSession` (commit pending)
+
+**Hypothesis.** ORT's `CreateSession` slot 7 signature is:
+
+```c
+OrtStatus* CreateSession(const OrtEnv*, const ORTCHAR_T*, const OrtSessionOptions*, OrtSession**)
+```
+
+`ORTCHAR_T` is defined as `char` on POSIX (UTF-8 narrow string) and `wchar_t`
+on Windows (UTF-16 wide string). The Dart FFI typedef was using `Pointer<Utf8>`
+for both platforms, and the call site used `modelPath.toNativeUtf8()`. On
+Windows, ORT interprets the UTF-8 bytes as a sequence of `wchar_t` (2-byte)
+code units, producing a completely wrong path.
+
+**Changes.**
+
+`lib/src/ort_api.dart`:
+- Changed `Pointer<Utf8>` → `Pointer<Void>` for the path parameter in
+  `CreateSessionC` and `CreateSessionDart`.
+- Updated the slot 7 comment from `const char*` to `const ORTCHAR_T*` with
+  a note explaining the platform difference.
+
+`lib/src/session.dart`:
+- Changed the `createSession` call at line ~287 from `modelPath.toNativeUtf8(
+  allocator: arena)` to a `Platform.isWindows` conditional: `toNativeUtf16`
+  on Windows (cast to `Pointer<Void>`), `toNativeUtf8` on POSIX (cast to
+  `Pointer<Void>`).
+- `dart:io` import was already present.
+
 **Result.** Pending CI run.

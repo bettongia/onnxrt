@@ -109,19 +109,22 @@ typedef CreateEnvDart =
 // slots 4–6: CreateEnvWithCustomLogger, EnableTelemetryEvents,
 //            DisableTelemetryEvents  [all unused]
 
-// slot 7: OrtStatus* CreateSession(const OrtEnv*, const char*, const OrtSessionOptions*, OrtSession**)
+// slot 7: OrtStatus* CreateSession(const OrtEnv*, const ORTCHAR_T*, const OrtSessionOptions*, OrtSession**)
+//   ORTCHAR_T = char  on POSIX (UTF-8 narrow string)
+//   ORTCHAR_T = wchar_t on Windows (UTF-16 wide string)
+//   Use Pointer<Void> here; callers must encode the path appropriately.
 // SLOT:CreateSession=7
 typedef CreateSessionC =
     Pointer<OrtStatus> Function(
       Pointer<OrtEnv>,
-      Pointer<Utf8>,
+      Pointer<Void>,
       Pointer<OrtSessionOptions>,
       Pointer<Pointer<OrtSession>>,
     );
 typedef CreateSessionDart =
     Pointer<OrtStatus> Function(
       Pointer<OrtEnv>,
-      Pointer<Utf8>,
+      Pointer<Void>,
       Pointer<OrtSessionOptions>,
       Pointer<Pointer<OrtSession>>,
     );

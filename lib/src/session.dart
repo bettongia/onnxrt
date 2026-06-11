@@ -19,6 +19,7 @@
 library;
 
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -283,7 +284,9 @@ final class OnnxSession {
       check(
         createSession(
           env,
-          modelPath.toNativeUtf8(allocator: arena),
+          Platform.isWindows
+              ? modelPath.toNativeUtf16(allocator: arena).cast<Void>()
+              : modelPath.toNativeUtf8(allocator: arena).cast<Void>(),
           sessionOpts,
           sessPtr,
         ),
