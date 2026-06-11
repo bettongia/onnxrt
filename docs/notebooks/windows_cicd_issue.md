@@ -285,4 +285,6 @@ code units, producing a completely wrong path.
   `Pointer<Void>`).
 - `dart:io` import was already present.
 
-**Result.** Pending CI run.
+**Result.** All green. `build`, `test-macos`, and `test-windows` all passed.
+`createSessionFromFile` now works correctly on Windows — the UTF-16 path
+encoding was the final missing piece. The Windows CI is stable.
