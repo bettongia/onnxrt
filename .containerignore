@@ -7,7 +7,12 @@ pubspec.lock
 .claude/
 .dart_tool/
 integration_test_app/.dart_tool
+integration_test_app/build
+packages/betto_onnxrt_ios/.dart_tool
+packages/betto_onnxrt_ios/build
 .git/
 .github/
 .gitignore
 .packages
+site/
+logs/

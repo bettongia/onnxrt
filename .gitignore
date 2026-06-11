@@ -37,6 +37,8 @@ api-docs/
 site/
 .claude/settings.json
 
+logs/*
+
 # 1. Ignore everything inside the downloads folder
 downloads/*
 
