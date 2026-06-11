@@ -23,27 +23,31 @@ default: clean prepare license_check format analyze test coverage doc
 # prepare_dart instead of prepare and clean_dart instead of clean.  The macOS
 # runner installs Flutter and can run the full on-device integration test.
 #
-# LD_LIBRARY_PATH (Linux) and PATH (Windows) must be extended to include the
-# ORT hook-cache directory before cicd_linux / cicd_windows are invoked; see
-# .github/workflows/cicd.yml for the setup steps.
-
 cicd: default
 .PHONY: cicd
 
-# cicd_linux is self-contained: it downloads the ORT binary, creates the
-# unversioned symlink that dlopen('libonnxruntime.so') needs in JIT mode, and
-# exports LD_LIBRARY_PATH before delegating to the quality-gate targets via a
-# sub-make that inherits the environment.  Run locally with:
+# cicd_linux is self-contained: downloads the ORT binary, creates the
+# unversioned symlink that dlopen('libonnxruntime.so') needs in JIT mode, then
+# runs dart test and coverage DIRECTLY in the same shell that exported
+# LD_LIBRARY_PATH — avoiding a sub-make boundary that does not reliably
+# propagate the variable to dart test on all platforms.
+# Run locally with:
 #   make container_test   (executes inside a Podman Linux container)
 #   make cicd_linux       (runs directly on a Linux host with Dart installed)
 cicd_linux:
 	dart pub global activate coverage
 	dart pub get
+	$(MAKE) --no-print-directory license_check format_check analyze
 	@ORT_VER=$$(cat VERSION_ONNX); \
 	  ORT_CACHE=".dart_tool/betto_onnxrt/$$ORT_VER"; \
 	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
 	  export LD_LIBRARY_PATH="$$(pwd)/$$ORT_CACHE$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}"; \
-	  $(MAKE) --no-print-directory license_check format_check analyze test coverage doc
+	  dart test && \
+	  dart test --coverage-path=coverage/lcov.info && \
+	  rm -rf site/coverage && \
+	  mkdir -p site/coverage && \
+	  genhtml coverage/lcov.info -o site/coverage
+	dart doc
 .PHONY: cicd_linux
 
 cicd_macos: prepare_flutter license_check format_check analyze test coverage doc macos_test
