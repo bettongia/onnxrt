@@ -119,6 +119,25 @@ void main() {
   // Evaluate availability once per test run to avoid repeated filesystem hits.
   final ortAvailable = _ortLibraryAvailable();
 
+  // On CI runners where the ORT binary should be staged (Linux and Windows),
+  // a missing binary indicates a misconfigured pipeline — fail immediately
+  // rather than silently skipping all inference tests.
+  //
+  // macOS is excluded: dart test runs in JIT mode where the macOS framework
+  // path only exists after a Flutter/AOT build.  macOS inference coverage is
+  // provided by `make macos_test` (Flutter integration test) in CI.
+  setUpAll(() {
+    final inCI = Platform.environment.containsKey('CI');
+    if (inCI && (Platform.isLinux || Platform.isWindows) && !ortAvailable) {
+      fail(
+        'CI: ORT binary not found on the dynamic-linker search path. '
+        'Ensure LD_LIBRARY_PATH (Linux) or PATH (Windows) includes '
+        '.dart_tool/betto_onnxrt/<version>/ before running dart test. '
+        'See .github/workflows/cicd.yml for the setup steps.',
+      );
+    }
+  });
+
   // All groups in this file are skipped unless the ORT library is staged.
   //
   // Design rationale: OnnxSession wraps the ORT C API via numeric vtable

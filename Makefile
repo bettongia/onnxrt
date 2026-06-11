@@ -17,16 +17,26 @@ export EMULATOR_ANDROID_ABI ?= arm64-v8a
 default: clean prepare license_check format analyze test coverage doc
 .PHONY: default
 
+# CI targets — invoked by GitHub Actions, not intended for direct local use.
+#
+# Linux/Windows CI runners have only Dart installed (no Flutter), so they use
+# prepare_dart instead of prepare and clean_dart instead of clean.  The macOS
+# runner installs Flutter and can run the full on-device integration test.
+#
+# LD_LIBRARY_PATH (Linux) and PATH (Windows) must be extended to include the
+# ORT hook-cache directory before cicd_linux / cicd_windows are invoked; see
+# .github/workflows/cicd.yml for the setup steps.
+
 cicd: default
 .PHONY: cicd
 
-cicd_macos: prepare test
-.PHONY: cicd_macos
-
-cicd_linux: prepare test
+cicd_linux: prepare_dart license_check format_check analyze test coverage doc
 .PHONY: cicd_linux
 
-cicd_windows: prepare test
+cicd_macos: prepare_flutter license_check format_check analyze test coverage doc macos_test
+.PHONY: cicd_macos
+
+cicd_windows: prepare_dart license_check format_check analyze test coverage doc
 .PHONY: cicd_windows
 
 # Run integration tests on macOS (requires the ORT dylib to be staged by the
@@ -181,17 +191,31 @@ site/api/index.html:
 
 # END: Documentation site tasks
 
-prepare:
+# prepare_dart: Dart-only setup — safe on CI runners that lack Flutter.
+# prepare_flutter: Full setup including Flutter project pub-gets.
+# prepare: Full local setup (delegates to prepare_flutter).
+prepare_dart:
 	dart pub global activate coverage
 	dart pub get
+.PHONY: prepare_dart
+
+prepare_flutter: prepare_dart
 	cd integration_test_app && flutter pub get
 	cd packages/betto_onnxrt_ios && flutter pub get
+.PHONY: prepare_flutter
+
+prepare: prepare_flutter
 .PHONY: prepare
 
-clean:
+# clean_dart: removes generated artefacts that don't require Flutter.
+# clean: full clean including Flutter build outputs.
+clean_dart:
 	rm -rf coverage
 	rm -rf doc
 	rm -rf site
+.PHONY: clean_dart
+
+clean: clean_dart
 	cd integration_test_app && flutter clean
 	cd packages/betto_onnxrt_ios && flutter clean
 .PHONY: clean

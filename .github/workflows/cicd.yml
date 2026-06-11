@@ -34,7 +34,22 @@ jobs:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
-      - run: make cicd
+      # dart pub get triggers hook/build.dart which downloads and SHA-256-verifies
+      # the ORT binary into .dart_tool/betto_onnxrt/{version}/.
+      - name: Download ORT binary (triggers build hook)
+        run: dart pub get
+
+      # dart test (JIT mode) doesn't set up the native-assets path.  Create an
+      # unversioned symlink so dlopen('libonnxruntime.so') resolves it, and
+      # export the cache directory on LD_LIBRARY_PATH for all subsequent steps.
+      - name: Expose ORT binary to dynamic linker (Linux)
+        run: |
+          ORT_VER=$(cat VERSION_ONNX)
+          ORT_CACHE=".dart_tool/betto_onnxrt/$ORT_VER"
+          ln -sf "libonnxruntime.so.$ORT_VER" "$ORT_CACHE/libonnxruntime.so"
+          echo "LD_LIBRARY_PATH=$(pwd)/$ORT_CACHE" >> "$GITHUB_ENV"
+
+      - run: make cicd_linux
 
   test-macos:
     runs-on: macos-latest
@@ -47,12 +62,21 @@ jobs:
         with:
           sdk: stable
 
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
       - name: Cache ORT binary
         uses: actions/cache@v5
         with:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
+      # make cicd_macos runs: prepare_flutter (pub gets + hook) → quality gate →
+      # dart test → coverage → doc → make macos_test (Flutter integration test).
+      # The Flutter integration test is the authoritative ORT load+inference check
+      # on macOS; dart test skips OnnxSession cases in JIT mode because the
+      # macOS framework path only exists after a Flutter/AOT build.
       - run: make cicd_macos
 
   test-windows:
@@ -71,5 +95,18 @@ jobs:
         with:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+
+      - name: Download ORT binary (triggers build hook)
+        run: dart pub get
+
+      # onnxruntime.dll is unversioned; adding its directory to PATH lets
+      # DynamicLibrary.open('onnxruntime.dll') find it in dart test (JIT mode).
+      - name: Add ORT DLL directory to PATH (Windows)
+        run: |
+          $ORT_VER = (Get-Content VERSION_ONNX).Trim()
+          $ORT_CACHE = ".dart_tool\betto_onnxrt\$ORT_VER"
+          $AbsPath = (Resolve-Path $ORT_CACHE).Path
+          "$AbsPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
 
       - run: make cicd_windows
