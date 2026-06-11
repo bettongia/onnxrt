@@ -52,12 +52,21 @@ The Magika `standard_v3_3` model is hosted at:
 
 ```
 https://github.com/google/magika/raw/main/assets/models/standard_v3_3/model.onnx
-https://github.com/google/magika/raw/main/assets/models/standard_v3_3/config.json
+https://github.com/google/magika/raw/main/assets/models/standard_v3_3/config.min.json
 ```
 
-Both files must be specified in the `ModelSpec`. The SHA-256 checksums are
-not known at plan time and must be fetched and recorded during implementation
-(see implementation step 2).
+Note: the config file is `config.min.json` — `config.json` does not exist at
+this path (returns HTTP 404). Other files in the directory (`README.md`,
+`metadata.json`) are not required by the implementation.
+
+Both files must be specified in the `ModelSpec`. SHA-256 checksums computed
+from `raw/main` as of 2026-06-11 (floating ref — recompute if Google updates
+the model; see Phase 2):
+
+| File | SHA-256 |
+|------|---------|
+| `model.onnx` | `fe2d2eb49c5f88a9e0a6c048e15d6ffdf86235519c2afc535044de433169ec8c` |
+| `config.min.json` | `ae24c742205358f6ff6dfd5facb6743fb69743dbba8373e73da58ff0cbd695db` |
 
 ### ONNX input/output format
 

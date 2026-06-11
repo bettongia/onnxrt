@@ -36,3 +36,15 @@ scratch.md
 api-docs/
 site/
 .claude/settings.json
+
+# 1. Ignore everything inside the downloads folder
+downloads/*
+
+# 2. Allow Git to look inside the subfolders
+!downloads/*/
+
+# 3. Ignore everything inside those subfolders
+downloads/*/*
+
+# 4. Re-include the README files
+!downloads/*/README.md
