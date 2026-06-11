@@ -96,19 +96,24 @@ container_test:
 pre_commit: format_check analyze license_check test check_ios_version
 .PHONY: pre_commit
 
-# Assert that the SPM version pin in packages/betto_onnxrt_ios/ios/Package.swift
-# matches VERSION_ONNX (without the leading "v").
-# Example: VERSION_ONNX=v1.22.0 → expected SPM pin "1.22.0".
+# Assert that the SPM exact-version pin in packages/betto_onnxrt_ios/ios/Package.swift
+# matches the "ios.version" field in version_onnx.json.
+#
+# The iOS SPM version (currently 1.24.2) legitimately differs from VERSION_ONNX
+# (1.22.0) because the microsoft/onnxruntime-swift-package-manager repo has no
+# tags between 1.20.0 and 1.24.1.  The two values are tracked independently:
+# VERSION_ONNX is the ORT C API baseline version; version_onnx.json "ios.version"
+# is the earliest available SPM tag >= VERSION_ONNX.
 # Run manually: make check_ios_version
 check_ios_version:
-	@ORT_VER=$$(cat VERSION_ONNX | tr -d '[:space:]' | sed 's/^v//'); \
-	SPM_VER=$$(grep 'from:' packages/betto_onnxrt_ios/ios/Package.swift | grep -o '"[0-9][^"]*"' | tr -d '"'); \
-	if [ "$$ORT_VER" != "$$SPM_VER" ]; then \
-	  echo "ERROR: VERSION_ONNX ($$ORT_VER) does not match Package.swift from: ($$SPM_VER)"; \
-	  echo "       Update packages/betto_onnxrt_ios/ios/Package.swift to from: \"$$ORT_VER\""; \
+	@IOS_VER=$$(python3 -c "import json,sys; d=json.load(open('version_onnx.json')); print(d['platforms']['ios']['version'])"); \
+	SPM_VER=$$(grep 'exact:' packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift | grep -o '"[0-9][^"]*"' | tr -d '"'); \
+	if [ "$$IOS_VER" != "$$SPM_VER" ]; then \
+	  echo "ERROR: version_onnx.json ios.version ($$IOS_VER) does not match Package.swift exact: ($$SPM_VER)"; \
+	  echo "       Update packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift to exact: \"$$IOS_VER\""; \
 	  exit 1; \
 	fi; \
-	echo "check_ios_version: OK ($$ORT_VER)"
+	echo "check_ios_version: OK ($$IOS_VER)"
 .PHONY: check_ios_version
 
 format:
@@ -179,10 +184,14 @@ site/api/index.html:
 prepare:
 	dart pub global activate coverage
 	dart pub get
+	cd integration_test_app && flutter pub get
+	cd packages/betto_onnxrt_ios && flutter pub get
 .PHONY: prepare
 
 clean:
 	rm -rf coverage
 	rm -rf doc
 	rm -rf site
+	cd integration_test_app && flutter clean
+	cd packages/betto_onnxrt_ios && flutter clean
 .PHONY: clean

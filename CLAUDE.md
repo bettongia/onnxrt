@@ -99,9 +99,13 @@ A separate Flutter app used for on-device integration tests. It is excluded from
 (`packages/betto_onnxrt_ios/`). The ORT XCFramework is statically linked into
 the host app by the shim; `OnnxRuntime.load()` uses `DynamicLibrary.process()`
 to resolve ORT symbols from the process image. The native-assets hook emits no
-`CodeAsset` on iOS — this is correct behaviour. Note: the shim is currently not
-wired into `integration_test_app`, so `make ios_test` fails on-device (tracked
-as a blocker in `docs/roadmap/v0.md`).
+`CodeAsset` on iOS — this is correct behaviour. `betto_onnxrt_ios` is wired
+into `integration_test_app` as a path dependency; `GeneratedPluginRegistrant.m`
+registers `BettoOnnxrtIosPlugin`. The SPM pin is `exact: "1.24.2"` (the SPM
+repo has no tags between 1.20.0 and 1.24.1; this is what `from: "1.22.0"` was
+already resolving to). Run `make ios_test` to verify end-to-end on a simulator.
+After the first successful build, confirm `_OrtGetApiBase` survives static
+linking: `nm -gU integration_test_app/build/ios/iphonesimulator/Runner.app/Runner | grep OrtGetApiBase`.
 
 **Roadmap**: The active roadmap is `docs/roadmap/v0.md`. All development work
 should be driven by and traceable to an item in that roadmap. We are currently

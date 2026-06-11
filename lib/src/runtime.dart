@@ -141,7 +141,12 @@ final class OnnxRuntime {
   /// [OnnxSession.dispose]d before calling [dispose]. Accessing a session
   /// after the runtime has been disposed is undefined behaviour.
   void dispose() {
-    _lib.close();
+    // DynamicLibrary.process() (used on iOS) represents the process image and
+    // cannot be closed — calling close() throws. Only close on platforms that
+    // open ORT as an explicit dylib/so.
+    if (!Platform.isIOS) {
+      _lib.close();
+    }
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -150,8 +155,9 @@ final class OnnxRuntime {
   ///
   /// **iOS** — ORT is statically linked into the host app by the
   /// `betto_onnxrt_ios` Flutter plugin, which declares an SPM dependency on
-  /// `microsoft/onnxruntime-swift-package-manager` (`onnxruntime-c`). Xcode
-  /// pulls the XCFramework via SPM and statically links it at build time. The
+  /// `microsoft/onnxruntime-swift-package-manager` (`onnxruntime` product). Xcode
+  /// pulls the XCFramework via SPM (`onnxruntime` product) and statically links
+  /// it at build time. The
   /// build hook does **not** stage a `CodeAsset` on iOS; the native-assets
   /// manifest is not involved. [DynamicLibrary.process] is used instead,
   /// resolving ORT C API symbols from the process image.
@@ -166,7 +172,8 @@ final class OnnxRuntime {
   static DynamicLibrary _openLibrary() {
     if (Platform.isIOS) {
       // ORT is statically linked into the app binary by the betto_onnxrt_ios
-      // SPM plugin shim; all ORT symbols are in the process image at launch.
+      // SPM plugin (onnxruntime product from onnxruntime-swift-package-manager);
+      // all ORT C API symbols are in the process image at launch.
       return DynamicLibrary.process();
     }
     if (Platform.isAndroid) {

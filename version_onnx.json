@@ -34,7 +34,7 @@
       "distribution": "spm",
       "spm_url": "https://github.com/microsoft/onnxruntime-swift-package-manager",
       "sha256": "f7100a992d2a8135168c8afd831e6a58b465349101982aa58b3e11d36e600b54",
-      "note": "SPM package has no tags for 1.21-1.23; 1.24.2 is the earliest available >= 1.22.0. SHA-256 sourced from Microsoft SPM Package.swift at tag 1.24.2."
+      "note": "SPM package has no tags for 1.21-1.23; 1.24.2 is the earliest available >= 1.22.0. SPM product is 'onnxruntime' (Swift/ObjC wrapper embedding the C API). SHA-256 sourced from Microsoft SPM Package.swift at tag 1.24.2."
     },
     "android": {
       "version": "1.22.0",

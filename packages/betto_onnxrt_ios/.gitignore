@@ -121,15 +121,6 @@ local.properties
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
-# Relative forms of the above — needed when this file lives inside ios/
-Flutter/Generated.xcconfig
-Flutter/ephemeral
-Flutter/app.flx
-Flutter/app.zip
-Flutter/flutter_assets/
-Flutter/flutter_export_environment.sh
-ServiceDefinitions.json
-Runner/GeneratedPluginRegistrant.*
 
 # macOS
 **/Flutter/ephemeral/
