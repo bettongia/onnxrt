@@ -85,17 +85,13 @@ jobs:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
-      - name: Download ORT binary (triggers build hook)
-        run: dart pub get
-
-      # onnxruntime.dll is unversioned; adding its directory to PATH lets
-      # DynamicLibrary.open('onnxruntime.dll') find it in dart test (JIT mode).
-      - name: Add ORT DLL directory to PATH (Windows)
+      # Sets PATH in the same shell session as dart test so
+      # DynamicLibrary.open('onnxruntime.dll') can find the DLL.
+      # Uses PowerShell native JSON (no python3 dependency).
+      - name: Run cicd_windows
         run: |
-          $ORT_VER = python3 -c "import json; print(json.load(open('version_onnx.json'))['platforms']['windows-x64']['version'])"
-          $ORT_CACHE = ".dart_tool\betto_onnxrt\$ORT_VER"
-          $AbsPath = Join-Path (Get-Location).Path $ORT_CACHE
-          "$AbsPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $ORT_VER = (Get-Content version_onnx.json | ConvertFrom-Json).platforms.'windows-x64'.version
+          $ORT_CACHE = Join-Path (Get-Location).Path ".dart_tool\betto_onnxrt\$ORT_VER"
+          $env:PATH = "$ORT_CACHE;$env:PATH"
+          make cicd_windows
         shell: pwsh
-
-      - run: make cicd_windows
