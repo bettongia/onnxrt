@@ -19,6 +19,7 @@
 /// (see §20 in the KMDB spec).
 library;
 
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
@@ -199,10 +200,66 @@ final class OnnxRuntime {
       return DynamicLibrary.open('$fw.framework/$fw');
     }
     if (Platform.isLinux) return DynamicLibrary.open('libonnxruntime.so');
-    if (Platform.isWindows) return DynamicLibrary.open('onnxruntime.dll');
+    if (Platform.isWindows) {
+      // Use an absolute path rather than a bare DLL name.  On Windows,
+      // LoadLibrary searches System32 *before* PATH entries, so a system-wide
+      // ORT installation (e.g. Windows ML shipped in System32) is found first
+      // when only the filename is given.  An absolute path bypasses the search
+      // and also makes Windows resolve the companion
+      // onnxruntime_providers_shared.dll from the same directory automatically.
+      //
+      // Strategy (first match wins):
+      //  1. Adjacent to the compiled executable — correct in AOT / Flutter
+      //     Windows builds where the hook-staged DLL is bundled next to the
+      //     .exe by the build system.
+      //  2. Hook cache keyed by version_onnx.json — correct for `dart test`
+      //     and `dart run` in JIT mode where the DLL lives in
+      //     .dart_tool/betto_onnxrt/{version}/.
+      //  3. Bare filename fallback — lets developer setups without a system
+      //     ORT still work via PATH (rare, but keeps the door open).
+      return DynamicLibrary.open(_windowsOrtDllPath());
+    }
     throw UnsupportedError(
       'betto_onnxrt: unsupported platform ${Platform.operatingSystem}. '
       'Supported: macOS, Linux, Windows, Android, iOS.',
     );
+  }
+
+  /// Returns the absolute path to `onnxruntime.dll`, trying in order:
+  ///
+  /// 1. Adjacent to the compiled executable (AOT / Flutter Windows build).
+  /// 2. The hook cache directory identified by `version_onnx.json` (JIT /
+  ///    `dart test` / `dart run`).
+  /// 3. Bare filename fallback — lets PATH resolve it when neither of the
+  ///    above applies (e.g. developer setup without a system ORT conflict).
+  static String _windowsOrtDllPath() {
+    // 1. Production AOT: the build system places the DLL next to the .exe.
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final exeDll = File('$exeDir/onnxruntime.dll');
+    if (exeDll.existsSync()) return exeDll.path;
+
+    // 2. JIT / dart test: DLL is in the hook cache.
+    // dart test sets Directory.current to the package root; dart run from the
+    // package root also has the manifest available.
+    try {
+      final pkgRoot = Directory.current.path;
+      final manifest =
+          jsonDecode(File('$pkgRoot/version_onnx.json').readAsStringSync())
+              as Map<String, dynamic>;
+      final key = Abi.current() == Abi.windowsArm64
+          ? 'windows-arm64'
+          : 'windows-x64';
+      final version =
+          ((manifest['platforms'] as Map<String, dynamic>)[key]
+                  as Map<String, dynamic>)['version']
+              as String;
+      final cacheDll = File(
+        '$pkgRoot/.dart_tool/betto_onnxrt/$version/onnxruntime.dll',
+      );
+      if (cacheDll.existsSync()) return cacheDll.path;
+    } catch (_) {}
+
+    // 3. Fallback: bare name, resolved by OS DLL search.
+    return 'onnxruntime.dll';
   }
 }

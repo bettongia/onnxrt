@@ -26,6 +26,7 @@
 /// verification procedure.
 library;
 
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
@@ -67,7 +68,13 @@ bool _ortLibraryAvailable() {
   } else if (Platform.isLinux) {
     libName = 'libonnxruntime.so';
   } else if (Platform.isWindows) {
-    libName = 'onnxruntime.dll';
+    // Use an absolute path rather than a bare DLL name.  On Windows,
+    // LoadLibrary searches System32 *before* PATH entries, so a system-wide
+    // ORT installation (e.g. Windows ML in System32) is found first when
+    // only the filename is given — regardless of our PATH prepend.  An
+    // absolute path bypasses the search entirely and also causes Windows to
+    // look for onnxruntime_providers_shared.dll in the same directory.
+    libName = _windowsOrtDllPath(_packageRoot());
   } else {
     return false; // Android/iOS require full build — always skip in test.
   }
@@ -104,6 +111,38 @@ bool _ortLibraryAvailable() {
 /// than `Platform.script`, which can point to a `.dill` snapshot path when
 /// running a single test file.
 String _packageRoot() => Directory.current.path;
+
+/// Returns the absolute path to `onnxruntime.dll` in the hook cache.
+///
+/// Reads the platform-specific version from `version_onnx.json` so we open
+/// exactly the DLL that the hook staged (e.g. `1.22.1` on Windows, which
+/// differs from the `1.22.0` baseline in `VERSION_ONNX`).  An absolute path
+/// is required because `LoadLibrary` on Windows searches `System32` before
+/// `PATH` entries — a bare filename always finds a pre-installed system ORT
+/// (e.g. Windows ML) before our cached version.
+///
+/// Falls back to the bare filename `'onnxruntime.dll'` if the manifest or
+/// the cached file cannot be found, so that local developer setups without
+/// a system ORT still work.
+String _windowsOrtDllPath(String packageRoot) {
+  try {
+    final manifest =
+        jsonDecode(File('$packageRoot/version_onnx.json').readAsStringSync())
+            as Map<String, dynamic>;
+    final key = Abi.current() == Abi.windowsArm64
+        ? 'windows-arm64'
+        : 'windows-x64';
+    final version =
+        ((manifest['platforms'] as Map<String, dynamic>)[key]
+                as Map<String, dynamic>)['version']
+            as String;
+    final dll = File(
+      '$packageRoot/.dart_tool/betto_onnxrt/$version/onnxruntime.dll',
+    );
+    if (dll.existsSync()) return dll.path;
+  } catch (_) {}
+  return 'onnxruntime.dll';
+}
 
 /// Skip message shown when the ORT library is not staged.
 const _skipMessage =

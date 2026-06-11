@@ -193,4 +193,55 @@ The first pattern means the DLLs are present but the load fails (dependency or
 other OS error). The second means the hook never ran and the root cause is in
 the build-asset plumbing.
 
+**Result.** Failed — same error, but now we know exactly why. The diagnostic
+output showed:
+
+```
+The requested API version [22] is not available, only API versions [1, 17]
+are supported in this build. Current ORT Version is: 1.17.1
+```
+
+Both DLLs were present in `.dart_tool/betto_onnxrt/1.22.1/` and the cache
+directory was correctly first in PATH. Despite this, `DynamicLibrary.open(
+'onnxruntime.dll')` loaded ORT 1.17.1 from a system location. The version
+check (`getApi(22)`) then returned `nullptr` because ORT 1.17.1 only supports
+up to API version 17, so `_ortLibraryAvailable()` returned `false`.
+
+Root cause: on Windows, `LoadLibrary` searches `System32` (and other system
+directories) **before** PATH entries. The `windows-latest` GitHub Actions
+runner has ORT 1.17.1 pre-installed (likely Windows ML / WinRT) in a
+directory that outranks PATH in the search order. PATH manipulation was never
+going to fix this.
+
+---
+
+### Attempt 5 — Absolute path for DLL open (current)
+
+**Hypothesis.** Passing an absolute path to `DynamicLibrary.open()` instead
+of a bare filename bypasses `LoadLibrary`'s search order entirely. Windows
+also resolves the companion DLL (`onnxruntime_providers_shared.dll`) from
+the same directory as the explicitly-loaded DLL, so PATH is not needed for
+that either. This fixes both the test probe and the production `_openLibrary`
+code path, which suffered from the same flaw.
+
+**Changes.**
+
+`lib/src/runtime.dart`:
+- `_openLibrary()` on Windows now calls `_windowsOrtDllPath()` instead of
+  `DynamicLibrary.open('onnxruntime.dll')`.
+- `_windowsOrtDllPath()` (new static helper) tries in order:
+  1. `onnxruntime.dll` adjacent to `Platform.resolvedExecutable` (AOT
+     production builds where the build system bundles the DLL next to
+     the `.exe`).
+  2. The hook cache directory identified by reading `version_onnx.json`
+     (JIT / `dart test` / `dart run` from the package root).
+  3. Bare filename fallback for developer setups without a conflicting
+     system ORT.
+
+`test/onnx_session_test.dart`:
+- `_ortLibraryAvailable()` on Windows now calls `_windowsOrtDllPath(
+  _packageRoot())` instead of using the bare filename.
+- `_windowsOrtDllPath(String packageRoot)` (new top-level helper) applies
+  the same logic as the runtime helper but scoped to the test package root.
+
 **Result.** Pending CI run.
