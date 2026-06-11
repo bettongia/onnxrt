@@ -85,13 +85,16 @@ jobs:
           path: .dart_tool/betto_onnxrt
           key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
 
-      # Sets PATH in the same shell session as dart test so
-      # DynamicLibrary.open('onnxruntime.dll') can find the DLL.
-      # Uses PowerShell native JSON (no python3 dependency).
+      # Run dart test directly from PowerShell so $env:PATH is inherited with
+      # no intermediate shell (Make → sh.exe) that could translate away the
+      # Windows DLL directory. The ORT hook runs at the start of dart test
+      # (before any test code) and downloads the DLL; the directory is already
+      # on PATH at that point so DynamicLibrary.open('onnxruntime.dll') works.
       - name: Run cicd_windows
         run: |
+          dart pub global activate coverage
+          dart pub get
           $ORT_VER = (Get-Content version_onnx.json | ConvertFrom-Json).platforms.'windows-x64'.version
-          $ORT_CACHE = Join-Path (Get-Location).Path ".dart_tool\betto_onnxrt\$ORT_VER"
-          $env:PATH = "$ORT_CACHE;$env:PATH"
-          make cicd_windows
+          $env:PATH = "$(Join-Path (Get-Location).Path ".dart_tool\betto_onnxrt\$ORT_VER");$env:PATH"
+          dart test
         shell: pwsh
