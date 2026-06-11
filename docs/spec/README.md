@@ -118,9 +118,11 @@ ORT XCFramework automatically. See §6 for full details.
 4. Verifies SHA-256:
    - **Android**: two-level verification — the downloaded AAR archive first,
      then each extracted `.so` per ABI.
-   - **Desktop / iOS**: checksums are **placeholder zeros** in v0.1.0 and must
-     be replaced with real values before the first public release
-     (tracked as `TODO(betto_onnxrt#2)`).
+   - **Desktop** (macOS, Linux, Windows): archive-level verification against the
+     digest in `version_onnx.json`. Real SHA-256 digests are in place as of
+     v1.22.0. Cached binaries are trusted via a `.sha256` sidecar file.
+   - **iOS**: the hook emits no `CodeAsset` on iOS and does not consult the
+     manifest; iOS SHA-256 is recorded in `version_onnx.json` for reference only.
 5. Registers the binary as a `CodeAsset` with `DynamicLoadingBundled` link
    mode so the Dart/Flutter build system places it alongside the executable.
 
@@ -565,12 +567,37 @@ from the native `OrtValue` via vtable slot 35 (`GetTensorElementType`) is
 planned for v0.2.0. Models that produce non-float32 outputs (e.g. classifier
 logits as `int64`) will have their data misinterpreted in v0.1.0.
 
-### Desktop and iOS SHA-256 checksums are placeholder zeros
+### ONNX external data format not supported via in-memory loading
 
-The `_sha256Manifest` in `hook/build.dart` contains real checksums for Android
-(both AAR and per-ABI `.so`). Desktop (macOS, Linux, Windows) and iOS entries
-are all-zeros placeholders. These must be replaced with real SHA-256 values
-before the first public release. Tracked as `TODO(betto_onnxrt#2)`.
+Some large models split weights into a separate `.onnx_data` file alongside
+the `.onnx` graph file (ONNX external data format). `createSession(modelBytes)`
+cannot load such models — ORT requires the external data file to be on disk and
+resolvable relative to the `.onnx` path, which is impossible when loading from
+a byte array.
+
+`createSessionFromFile(modelPath)` may work if all files are co-located in the
+same directory (e.g. downloaded together via `ModelDownloader` into
+`cacheDir/{spec.id}/`), but this path is untested and not officially supported
+in v0.
+
+**Workaround**: prefer quantized or otherwise self-contained single-file ONNX
+exports. For BGE-M3, for example, `Xenova/bge-m3`'s `model_quantized.onnx`
+(570 MB, int8 weights, float32 output) is a drop-in alternative to the
+full-precision `BAAI/bge-m3` export which requires a separate 2.17 GB
+`model.onnx_data` file.
+
+### iOS SHA-256 digest is not verified at build time
+
+Desktop (macOS, Linux, Windows) SHA-256 verification is active as of v1.22.0.
+All desktop archive digests are recorded in `version_onnx.json` and verified
+by the hook before extraction.
+
+The iOS entry in `version_onnx.json` carries a real SHA-256 digest (sourced
+from Microsoft's SPM `Package.swift` at tag 1.24.2) for documentation and
+supply-chain reference. However, the hook exits before any manifest lookup on
+iOS — no `CodeAsset` is emitted and no binary is downloaded. The iOS digest is
+therefore not verified at build time; it is a documented-unreachable value that
+records what ORT version the SPM shim links.
 
 ### Windows and Linux integration testing
 

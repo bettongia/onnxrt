@@ -26,8 +26,8 @@ jobs:
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       # Cache the downloaded ORT binary by ORT version.
-      # The all-zeros SHA-256 placeholder means _isValid() trusts existing
-      # files, so this cache is effective until real checksums are added.
+      # The cache is effective when the cached file's SHA-256 matches the
+      # digest in version_onnx.json; a digest mismatch triggers a re-download.
       - name: Cache ORT binary
         uses: actions/cache@v5
         with:

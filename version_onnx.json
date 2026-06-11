@@ -1,0 +1,51 @@
+{
+  "baseline_ort_version": "1.22.0",
+  "ort_api_version": 22,
+  "platforms": {
+    "macos-arm64": {
+      "version": "1.22.0",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-osx-arm64-1.22.0.tgz",
+      "sha256": "cab6dcbd77e7ec775390e7b73a8939d45fec3379b017c7cb74f5b204c1a1cc07"
+    },
+    "linux-aarch64": {
+      "version": "1.22.0",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-aarch64-1.22.0.tgz",
+      "sha256": "bb76395092d150b52c7092dc6b8f2fe4d80f0f3bf0416d2f269193e347e24702"
+    },
+    "linux-x64": {
+      "version": "1.22.0",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz",
+      "sha256": "8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3"
+    },
+    "windows-arm64": {
+      "version": "1.22.1",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.1/onnxruntime-win-arm64-1.22.1.zip",
+      "sha256": "3c984f25de07fdbbd2be36792dabfa18810c7483262238ea241ca5a1e52a4f82",
+      "note": "Patch over v1.22.0: optional dxcore.lib loading; lowers minimum Windows to 10.0.19041"
+    },
+    "windows-x64": {
+      "version": "1.22.1",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.1/onnxruntime-win-x64-1.22.1.zip",
+      "sha256": "855276cd4be3cda14fe636c69eb038d75bf5bcd552bda1193a5d79c51f436dfe",
+      "note": "Patch over v1.22.0: optional dxcore.lib loading; lowers minimum Windows to 10.0.19041"
+    },
+    "ios": {
+      "version": "1.24.2",
+      "distribution": "spm",
+      "spm_url": "https://github.com/microsoft/onnxruntime-swift-package-manager",
+      "sha256": "f7100a992d2a8135168c8afd831e6a58b465349101982aa58b3e11d36e600b54",
+      "note": "SPM package has no tags for 1.21-1.23; 1.24.2 is the earliest available >= 1.22.0. SHA-256 sourced from Microsoft SPM Package.swift at tag 1.24.2."
+    },
+    "android": {
+      "version": "1.22.0",
+      "url": "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar",
+      "sha256_archive": "04a4617a9c797cf49225595e45b5546081cb34c86ac817581141577d3b7dbfe2",
+      "sha256_per_abi": {
+        "arm64-v8a":   "999ecfdb5b5a13e4097487773b6d71ce8a075408a237daab072e8f5e817bd78e",
+        "armeabi-v7a": "2ca20b18eecc56d066018b4c741dbeaeb2627187e1277b63682377ade6608b39",
+        "x86_64":      "e3e67500ac56271802355bad3a46dcfcb90ce6392d9c4793b5a2c48da0d2a4e9",
+        "x86":         "569eb4f19cfd11a6248c5019b509cd731444cbe85e74d72bdec4a743b245bea1"
+      }
+    }
+  }
+}

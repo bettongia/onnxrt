@@ -35,6 +35,14 @@
 /// - Concurrent invocations use last-writer-wins on the atomic rename — both
 ///   writers produce byte-identical, checksum-verified output.
 ///
+/// ## Platform manifest
+///
+/// All platform binary metadata (versions, download URLs, SHA-256 digests) is
+/// stored in `version_onnx.json` at the package root. The hook reads this file
+/// at build time via [_loadPlatformManifest]. The JSON is the single source of
+/// truth; `VERSION_ONNX` (flat file) tracks the API baseline for shell scripts
+/// and Makefile targets.
+///
 /// ## iOS
 ///
 /// iOS is NOT supported via the native-assets hook. The ORT iOS XCFramework
@@ -52,7 +60,9 @@
 /// (`onnxruntime-c`), causing Xcode to statically link ORT into the host app.
 /// `OnnxRuntime.load()` then uses `DynamicLibrary.process()` to resolve ORT
 /// C API symbols from the process image. `_buildIos` logs a warning and emits
-/// no CodeAsset.
+/// no CodeAsset. The iOS SHA-256 digest is recorded in `version_onnx.json` for
+/// reference; it is not read at build time because the hook exits before any
+/// manifest lookup on iOS.
 ///
 /// ## Provenance waiver
 ///
@@ -70,105 +80,6 @@ import 'dart:typed_data';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:logging/logging.dart';
-
-// ── Version constant ──────────────────────────────────────────────────────────
-
-/// Read the ORT version from the VERSION_ONNX file at the package root.
-///
-/// We re-read VERSION_ONNX directly here (rather than importing the generated
-/// constant) because the hook runs in a separate build process where the
-/// generated file may not have been produced yet on a fresh checkout.
-String _readOrtVersion(Uri packageRoot) {
-  final versionFile = File.fromUri(packageRoot.resolve('VERSION_ONNX'));
-  if (!versionFile.existsSync()) {
-    throw StateError(
-      'VERSION_ONNX not found at ${versionFile.path}. '
-      'This file must exist in the betto_onnxrt package root.',
-    );
-  }
-  final raw = versionFile.readAsStringSync().trim();
-  // Strip leading 'v' to get a bare version number like '1.22.0'.
-  return raw.startsWith('v') ? raw.substring(1) : raw;
-}
-
-// ── SHA-256 manifest ──────────────────────────────────────────────────────────
-
-// Expected SHA-256 digests for each ORT v1.22.0 release artifact.
-// Keyed by archive filename.
-//
-// NOTE (2026-06-09): v1.22.0 was audited against the GitHub Releases asset
-// list (https://github.com/microsoft/onnxruntime/releases/tag/v1.22.0).
-// Findings:
-//   - macOS x64 artifact is named 'onnxruntime-osx-x86_64-…', NOT 'osx-x64-…'.
-//     The '_desktopArtifact' function below uses 'x86_64' for macOS/x64.
-//   - No iOS XCFramework or Android AAR are present in the v1.22.0 GitHub
-//     release assets. iOS and Android builds require a different source (e.g.
-//     Microsoft's Maven/CocoaPods distribution or a future release). The
-//     _buildIos and _buildAndroid paths below will fail with a missing-manifest
-//     entry error until these artifacts become available or alternative URLs are
-//     supplied.
-//   - SHA-256 checksums are NOT published as sidecar files on the v1.22.0
-//     release page. They must be computed by downloading each artifact:
-//       curl -fsSL <url> | sha256sum
-//     Replace the placeholder zeros below with the computed values before
-//     shipping. The hook emits a WARNING (not an error) for all-zero values to
-//     allow development to proceed without real checksums.
-//
-// TODO(betto_onnxrt#2): Fill in real checksums before the first release. Run:
-//   for f in osx-arm64 osx-x86_64 linux-aarch64 linux-x64 win-arm64 win-x64; do
-//     ext=tgz; [[ $f == win* ]] && ext=zip
-//     url="https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-$f-1.22.0.$ext"
-//     echo "$f: $(curl -fsSL $url | sha256sum | awk '{print $1}')"
-//   done
-const _sha256Manifest = <String, String>{
-  // macOS — NOTE: GitHub releases use 'x86_64' not 'x64' for the x64 variant.
-  'onnxruntime-osx-arm64-1.22.0.tgz':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  'onnxruntime-osx-x86_64-1.22.0.tgz':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  // Linux
-  'onnxruntime-linux-aarch64-1.22.0.tgz':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  'onnxruntime-linux-x64-1.22.0.tgz':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  // Windows
-  'onnxruntime-win-arm64-1.22.0.zip':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  'onnxruntime-win-x64-1.22.0.zip':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  // iOS XCFramework — distributed via Microsoft's pod archive CDN, NOT GitHub
-  // Releases. URL: https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.22.0.zip
-  // TODO(betto_onnxrt#2): compute with: curl -fsSL <url> | sha256sum
-  'pod-archive-onnxruntime-c-1.22.0.zip':
-      '0000000000000000000000000000000000000000000000000000000000000000',
-  // Android AAR — distributed via Maven Central, not GitHub Releases.
-  // URL: https://repo1.maven.org/maven2/com/microsoft/onnxruntime/
-  //        onnxruntime-android/1.22.0/onnxruntime-android-1.22.0.aar
-  //
-  // Two-level verification:
-  //   - Archive-level digest: keyed as '<aarName>.archive', checked before
-  //     extraction. Cross-checked against Maven Central's .aar.sha256 sidecar.
-  //   - Per-ABI .so digest: keyed as 'onnxruntime-android-{abi}-{ver}.so',
-  //     checked after extraction. Each ABI has a distinct .so binary.
-  //
-  // Both digests computed 2026-06-10:
-  //   curl -fsSL <url> -o onnxruntime-android-1.22.0.aar && shasum -a 256 onnxruntime-android-1.22.0.aar
-  //   unzip -p onnxruntime-android-1.22.0.aar jni/{abi}/libonnxruntime.so | shasum -a 256
-  'onnxruntime-android-1.22.0.aar.archive':
-      '04a4617a9c797cf49225595e45b5546081cb34c86ac817581141577d3b7dbfe2',
-  // arm64-v8a (standard Android emulator on Apple Silicon; physical arm64 devices)
-  'onnxruntime-android-arm64-v8a-1.22.0.so':
-      '999ecfdb5b5a13e4097487773b6d71ce8a075408a237daab072e8f5e817bd78e',
-  // armeabi-v7a (32-bit ARM devices)
-  'onnxruntime-android-armeabi-v7a-1.22.0.so':
-      '2ca20b18eecc56d066018b4c741dbeaeb2627187e1277b63682377ade6608b39',
-  // x86_64 (64-bit Intel emulator)
-  'onnxruntime-android-x86_64-1.22.0.so':
-      'e3e67500ac56271802355bad3a46dcfcb90ce6392d9c4793b5a2c48da0d2a4e9',
-  // x86 (32-bit Intel emulator)
-  'onnxruntime-android-x86-1.22.0.so':
-      '569eb4f19cfd11a6248c5019b509cd731444cbe85e74d72bdec4a743b245bea1',
-};
 
 // ── Hook entry point ──────────────────────────────────────────────────────────
 
@@ -211,7 +122,14 @@ Future<void> _buildDesktop(
   Architecture arch,
   Uri packageRoot,
 ) async {
-  final version = _readOrtVersion(packageRoot);
+  final platformEntry = _loadPlatformManifest(os, arch, packageRoot);
+  final version = platformEntry['version'] as String;
+  final url = platformEntry['url'] as String;
+  // sha256 is the archive-level digest. Desktop uses single-level archive
+  // verification; the extracted binary is cached with a `.sha256` sidecar
+  // that records the archive hash so subsequent builds skip re-download.
+  final archiveSha = platformEntry['sha256'] as String;
+
   final cacheDir = _cacheDirectory(packageRoot, version);
 
   final (archiveName, libPathInArchive, libFileName) = _desktopArtifact(
@@ -220,22 +138,15 @@ Future<void> _buildDesktop(
     version,
   );
 
-  final expectedSha = _sha256Manifest[archiveName];
-  if (expectedSha == null) {
-    throw StateError(
-      'No SHA-256 manifest entry for "$archiveName". '
-      'Add the checksum to _sha256Manifest in hook/build.dart.',
-    );
-  }
-
   final libFile = File('${cacheDir.path}/$libFileName');
-  await _ensureFile(
+  await _ensureFileFromArchive(
     dest: libFile,
     archiveName: archiveName,
     innerPath: libPathInArchive,
-    expectedSha256: expectedSha,
+    archiveSha256: archiveSha,
     version: version,
     logger: logger,
+    downloadUrl: url,
   );
 
   output.assets.code.add(
@@ -259,12 +170,16 @@ Future<void> _buildDesktop(
   final dartArch = _dartArchString(arch);
 
   if (os == OS.macOS) {
-    // GitHub Releases uses 'arm64' for Apple Silicon and 'x86_64' (not 'x64')
-    // for Intel Macs — verified against the v1.22.0 asset list 2026-06-09.
-    final osxArch = arch == Architecture.x64 ? 'x86_64' : dartArch;
-    final archive = 'onnxruntime-osx-$osxArch-$version.tgz';
+    // macOS x86_64 (Intel) is not a supported platform.
+    if (arch == Architecture.x64) {
+      throw UnsupportedError(
+        'betto_onnxrt: macOS x86_64 (Intel) is not supported.',
+      );
+    }
+    // GitHub Releases uses 'arm64' for Apple Silicon.
+    final archive = 'onnxruntime-osx-$dartArch-$version.tgz';
     final inner =
-        'onnxruntime-osx-$osxArch-$version/lib/libonnxruntime.$version.dylib';
+        'onnxruntime-osx-$dartArch-$version/lib/libonnxruntime.$version.dylib';
     return (archive, inner, 'libonnxruntime.$version.dylib');
   }
   if (os == OS.linux) {
@@ -288,14 +203,9 @@ Future<void> _buildDesktop(
 
 /// Builds for iOS: extracts the per-SDK Mach-O binary from the ORT XCFramework.
 ///
-/// Source: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-{ver}.zip`
-///
-/// ZIP structure (no wrapper directory at root):
-///   onnxruntime.xcframework/ios-arm64/onnxruntime.framework/onnxruntime
-///   onnxruntime.xcframework/ios-arm64_x86_64-simulator/onnxruntime.framework/onnxruntime
-///
-/// The simulator slice is a fat binary (arm64 + x86_64); we emit it for both
-/// Architecture.arm64 and Architecture.x64 simulator builds.
+/// The hook exits early here — iOS is not supported via native-assets.
+/// iOS ORT support is provided by the `betto_onnxrt_ios` SPM plugin shim.
+/// The iOS SHA-256 digest is recorded in `version_onnx.json` for reference.
 Future<void> _buildIos(
   BuildInput input,
   BuildOutputBuilder output,
@@ -337,43 +247,27 @@ Future<void> _buildAndroid(
   Architecture arch,
   Uri packageRoot,
 ) async {
-  final version = _readOrtVersion(packageRoot);
-  final cacheDir = _cacheDirectory(packageRoot, version);
+  final platformEntry = _loadPlatformManifest(OS.android, arch, packageRoot);
+  final version = platformEntry['version'] as String;
+  final mavenUrl = platformEntry['url'] as String;
+  final archiveSha = platformEntry['sha256_archive'] as String;
+  final perAbiMap = platformEntry['sha256_per_abi'] as Map<String, dynamic>;
 
+  final cacheDir = _cacheDirectory(packageRoot, version);
   final versionedArchiveName = 'onnxruntime-android-$version.aar';
 
-  // Two-level verification (see _sha256Manifest for details):
-  //   1. Archive-level: verify the downloaded AAR against a known-good digest
-  //      before extracting anything — guards against a substituted AAR.
-  //   2. Per-ABI .so: verify the extracted .so against a per-ABI digest —
-  //      guards against a corrupt or wrong-ABI extraction.
-  final archiveKey = '$versionedArchiveName.archive';
-  final archiveSha = _sha256Manifest[archiveKey];
-  if (archiveSha == null) {
-    throw StateError(
-      'No archive-level SHA-256 manifest entry for "$archiveKey". '
-      'Add the checksum to _sha256Manifest in hook/build.dart.',
-    );
-  }
-
   final abiDir = _androidAbiDir(arch);
-  final soKey = 'onnxruntime-android-$abiDir-$version.so';
-  final expectedSoSha = _sha256Manifest[soKey];
+  final expectedSoSha = perAbiMap[abiDir] as String?;
   if (expectedSoSha == null) {
     throw StateError(
-      'No per-ABI SHA-256 manifest entry for "$soKey". '
-      'Add the checksum to _sha256Manifest in hook/build.dart.',
+      'No per-ABI SHA-256 entry for "$abiDir" in version_onnx.json. '
+      'Add the checksum to version_onnx.json.',
     );
   }
 
   final innerPath = 'jni/$abiDir/libonnxruntime.so';
   final libFile = File('${cacheDir.path}/android/$abiDir/libonnxruntime.so');
   await Directory(libFile.parent.path).create(recursive: true);
-
-  // Android AAR is hosted on Maven Central, not GitHub Releases.
-  final mavenUrl =
-      'https://repo1.maven.org/maven2/com/microsoft/onnxruntime'
-      '/onnxruntime-android/$version/onnxruntime-android-$version.aar';
 
   await _ensureFile(
     dest: libFile,
@@ -406,6 +300,76 @@ String _androidAbiDir(Architecture arch) {
   throw UnsupportedError('Unsupported Android arch: $arch');
 }
 
+// ── Platform manifest ─────────────────────────────────────────────────────────
+
+/// Loads and returns the platform entry from `version_onnx.json` for the given
+/// [os] and [arch].
+///
+/// The JSON file at `{packageRoot}/version_onnx.json` is the single source of
+/// truth for all platform binary metadata (versions, URLs, SHA-256 digests).
+///
+/// Platform key mapping:
+///   - macOS arm64   → `"macos-arm64"`
+///   - macOS x64     → throws [UnsupportedError] (Intel Mac not supported)
+///   - Linux arm64   → `"linux-aarch64"`
+///   - Linux x64     → `"linux-x64"`
+///   - Windows arm64 → `"windows-arm64"`
+///   - Windows x64   → `"windows-x64"`
+///   - Android       → `"android"` (any arch; per-ABI SHAs are inside the entry)
+///   - iOS           → not reached (hook exits early; no manifest lookup needed)
+Map<String, dynamic> _loadPlatformManifest(
+  OS os,
+  Architecture arch,
+  Uri packageRoot,
+) {
+  final manifestFile = File.fromUri(packageRoot.resolve('version_onnx.json'));
+  if (!manifestFile.existsSync()) {
+    throw StateError(
+      'version_onnx.json not found at ${manifestFile.path}. '
+      'This file must exist in the betto_onnxrt package root.',
+    );
+  }
+
+  final decoded =
+      jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+  final platforms = decoded['platforms'] as Map<String, dynamic>;
+
+  final key = _platformKey(os, arch);
+  final entry = platforms[key] as Map<String, dynamic>?;
+  if (entry == null) {
+    throw StateError(
+      'No entry for platform key "$key" in version_onnx.json. '
+      'Add the platform entry to version_onnx.json.',
+    );
+  }
+  return entry;
+}
+
+/// Maps [os] and [arch] to the platform key used in `version_onnx.json`.
+///
+/// Throws [UnsupportedError] for explicitly unsupported combinations (macOS
+/// x86_64 / Intel).
+String _platformKey(OS os, Architecture arch) {
+  if (os == OS.macOS) {
+    if (arch == Architecture.x64) {
+      throw UnsupportedError(
+        'betto_onnxrt: macOS x86_64 (Intel) is not supported.',
+      );
+    }
+    return 'macos-arm64';
+  }
+  if (os == OS.linux) {
+    return arch == Architecture.arm64 ? 'linux-aarch64' : 'linux-x64';
+  }
+  if (os == OS.windows) {
+    return arch == Architecture.arm64 ? 'windows-arm64' : 'windows-x64';
+  }
+  if (os == OS.android) {
+    return 'android';
+  }
+  throw UnsupportedError('Unsupported OS for betto_onnxrt: $os');
+}
+
 // ── File acquisition helpers ──────────────────────────────────────────────────
 
 /// Returns the hook cache directory: `{packageRoot}/.dart_tool/betto_onnxrt/{version}/`.
@@ -418,22 +382,101 @@ Directory _cacheDirectory(Uri packageRoot, String version) {
   );
 }
 
+/// Ensures [dest] exists, verifying integrity against the archive SHA-256.
+///
+/// Used for **desktop** platforms (macOS, Linux, Windows) where `version_onnx.json`
+/// carries an archive-level digest (`sha256`) rather than a per-extracted-file
+/// digest.
+///
+/// ## Fast path (cache hit)
+///
+/// [dest] and a companion sidecar `{dest.path}.sha256` are both present and
+/// the sidecar content equals [archiveSha256] — the cached binary was produced
+/// from a verified archive and is trusted without re-downloading.
+///
+/// ## Cold start
+///
+/// Downloads the archive from [downloadUrl], verifies it against [archiveSha256],
+/// extracts [innerPath], writes [dest] atomically via a `.part` temp file, and
+/// writes the sidecar so future invocations hit the fast path.
+///
+/// ## Crash safety
+///
+/// Downloads use a `.part` temp file — a partial download never passes the
+/// sidecar check. The sidecar is written only after [dest] is in place.
+/// Last-writer-wins on the atomic rename is safe because concurrent writers
+/// verify the same archive and produce byte-identical output.
+Future<void> _ensureFileFromArchive({
+  required File dest,
+  required String archiveName,
+  required String innerPath,
+  required String archiveSha256,
+  required String version,
+  required Logger logger,
+  required String downloadUrl,
+}) async {
+  // Fast path: dest and sidecar exist and sidecar records the expected archive
+  // SHA. This means the binary was previously extracted from a verified archive.
+  final sidecar = File('${dest.path}.sha256');
+  if (dest.existsSync() && sidecar.existsSync()) {
+    final storedSha = sidecar.readAsStringSync().trim();
+    if (storedSha == archiveSha256) {
+      logger.info('  cached: ${dest.path}');
+      if (Platform.isMacOS) await _stripXattrs(dest, logger);
+      return;
+    }
+  }
+
+  await dest.parent.create(recursive: true);
+
+  logger.info('  downloading $archiveName ...');
+  final archiveBytes = await _download(downloadUrl, logger);
+
+  // Archive-level integrity check: verify before extracting.
+  // Any mismatch throws immediately — no bypass.
+  final actualArchiveSha = _sha256PureDart(Uint8List.fromList(archiveBytes));
+  if (actualArchiveSha != archiveSha256) {
+    throw StateError(
+      'Archive SHA-256 mismatch for $archiveName.\n'
+      '  Expected : $archiveSha256\n'
+      '  Got      : $actualArchiveSha\n'
+      'The download may be corrupt or tampered. Delete the cache and retry, '
+      'or update version_onnx.json.',
+    );
+  }
+
+  logger.info('  extracting $innerPath ...');
+  final fileBytes = _extractFromArchive(archiveBytes, archiveName, innerPath);
+
+  // Write to a .part temp file, then atomically rename.
+  final tempFile = File('${dest.path}.part');
+  await tempFile.writeAsBytes(fileBytes, flush: true);
+  await tempFile.rename(dest.path);
+  if (Platform.isMacOS) await _stripXattrs(dest, logger);
+
+  // Write the sidecar so subsequent builds hit the fast path.
+  await sidecar.writeAsString(archiveSha256, flush: true);
+  logger.info('  staged: ${dest.path}');
+}
+
 /// Ensures [dest] exists and its SHA-256 matches [expectedSha256].
 ///
-/// If [dest] is already present and valid, returns immediately (fast path).
-/// Otherwise downloads the archive from GitHub Releases (or [downloadUrl] if
-/// supplied), optionally verifies the archive itself against [archiveSha256],
-/// extracts [innerPath], verifies the extracted file checksum, and atomically
-/// renames the temp file to [dest].
+/// Used for **Android** where `version_onnx.json` carries both an
+/// archive-level digest (`sha256_archive`) and a per-ABI extracted-file
+/// digest (`sha256_per_abi`). Two-level verification is applied.
+///
+/// If [dest] is already present and its SHA-256 matches [expectedSha256],
+/// returns immediately (fast path). Otherwise downloads the archive from
+/// [downloadUrl], verifies it against [archiveSha256], extracts [innerPath],
+/// verifies the extracted file, and atomically renames to [dest].
 ///
 /// ## Two-level verification
 ///
 /// When [archiveSha256] is provided, the downloaded archive bytes are
 /// checksummed before extraction begins. This guards against a substituted or
 /// tampered archive (e.g. a man-in-the-middle AAR that contains the expected
-/// `.so` alongside additional malicious entries). The all-zeros placeholder
-/// bypass applies to [archiveSha256] independently of [expectedSha256] —
-/// either can be a placeholder without disabling the other's real check.
+/// `.so` alongside additional malicious entries). Any checksum mismatch throws
+/// immediately — there is no bypass.
 ///
 /// ## Crash safety
 ///
@@ -470,25 +513,17 @@ Future<void> _ensureFile({
 
   // Archive-level integrity check (two-level verification, first gate).
   // When archiveSha256 is provided, verify the downloaded archive before
-  // extracting. The all-zeros placeholder disables this check for development.
+  // extracting. Any mismatch throws immediately.
   if (archiveSha256 != null) {
     final actualArchiveSha = _sha256PureDart(Uint8List.fromList(archiveBytes));
     if (actualArchiveSha != archiveSha256) {
-      if (archiveSha256 == '0' * 64) {
-        logger.warning(
-          '  WARNING: archive SHA-256 not configured for $archiveName. '
-          'Update _sha256Manifest with the real archive checksum before release. '
-          'Got: $actualArchiveSha',
-        );
-      } else {
-        throw StateError(
-          'Archive SHA-256 mismatch for $archiveName.\n'
-          '  Expected : $archiveSha256\n'
-          '  Got      : $actualArchiveSha\n'
-          'The download may be corrupt or tampered. Delete the cache and retry, '
-          'or update _sha256Manifest in hook/build.dart.',
-        );
-      }
+      throw StateError(
+        'Archive SHA-256 mismatch for $archiveName.\n'
+        '  Expected : $archiveSha256\n'
+        '  Got      : $actualArchiveSha\n'
+        'The download may be corrupt or tampered. Delete the cache and retry, '
+        'or update version_onnx.json.',
+      );
     }
   }
 
@@ -496,27 +531,16 @@ Future<void> _ensureFile({
   final fileBytes = _extractFromArchive(archiveBytes, archiveName, innerPath);
 
   // Extracted-file integrity check (two-level verification, second gate).
-  // Verify SHA-256 before writing. This is the integrity guarantee.
+  // Verify SHA-256 before writing. Any mismatch throws immediately.
   final actualSha = _sha256PureDart(Uint8List.fromList(fileBytes));
   if (actualSha != expectedSha256) {
-    // If expectedSha256 is the all-zeros placeholder, skip verification
-    // and warn. This lets development proceed without real checksums.
-    // Remove this bypass before shipping (replace zeros with real values).
-    if (expectedSha256 == '0' * 64) {
-      logger.warning(
-        '  WARNING: SHA-256 not configured for $archiveName ($innerPath). '
-        'Update _sha256Manifest with the real checksum before release. '
-        'Got: $actualSha',
-      );
-    } else {
-      throw StateError(
-        'SHA-256 mismatch for $archiveName ($innerPath).\n'
-        '  Expected : $expectedSha256\n'
-        '  Got      : $actualSha\n'
-        'The download may be corrupt. Delete the cache and retry, or update '
-        '_sha256Manifest in hook/build.dart.',
-      );
-    }
+    throw StateError(
+      'SHA-256 mismatch for $archiveName ($innerPath).\n'
+      '  Expected : $expectedSha256\n'
+      '  Got      : $actualSha\n'
+      'The download may be corrupt. Delete the cache and retry, or update '
+      'version_onnx.json.',
+    );
   }
 
   // Write to a .part temp file, then atomically rename.
@@ -528,7 +552,7 @@ Future<void> _ensureFile({
   logger.info('  staged: ${dest.path}');
 }
 
-/// Returns `true` if [file] exists and its SHA-256 matches [expectedHex].
+/// Returns `true` if [file] is present and its SHA-256 matches [expectedHex].
 ///
 /// Strips all extended attributes from [file] on macOS.
 ///
@@ -546,14 +570,11 @@ Future<void> _stripXattrs(File file, Logger logger) async {
 
 /// Returns `true` if [file] is present and its SHA-256 matches [expectedHex].
 ///
-/// When [expectedHex] is the all-zeros placeholder (checksums not yet
-/// configured), the file is accepted as-is if it exists — no digest check.
-/// This keeps CI caches effective while real checksums are pending. When real
-/// checksums are filled in, the digest check re-activates and a corrupt or
-/// wrong-platform file will be rejected and re-downloaded.
+/// Returns `false` if the file does not exist or if the digest check fails.
+/// There is no bypass for placeholder values — a real digest must be present
+/// for the cached file to be trusted.
 Future<bool> _isValid(File file, String expectedHex) async {
   if (!file.existsSync()) return false;
-  if (expectedHex == '0' * 64) return true; // placeholder: trust existing file
   try {
     final bytes = await file.readAsBytes();
     return _sha256PureDart(bytes) == expectedHex;
