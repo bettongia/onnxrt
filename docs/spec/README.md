@@ -449,7 +449,11 @@ the same process will produce the same result. Recovery options are:
   `VERSION_ONNX` and rebuild.
 - If the library cannot be found, the native-assets build hook did not run or
   did not stage the binary correctly. Run `dart pub get` (which triggers the
-  hook) and rebuild.
+  hook) and rebuild. On macOS, `OnnxRuntime.load()` tries multiple library
+  locations in order: Flutter framework bundle first, then `bundle/lib/`
+  (for `dart build cli` AOT binaries), then `.dart_tool/lib/` (for
+  `dart run` JIT mode). If all fail, the final diagnostic error names the
+  framework path.
 - On iOS, a `symbol not found: OrtGetApiBase` error means `betto_onnxrt_ios`
   is not in the dependency graph. Add it to `pubspec.yaml` and rebuild.
 

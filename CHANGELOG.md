@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added `example/magika/` — a standalone Dart CLI tool that detects file types
+  using Google's Magika v3.3 ONNX model. Demonstrates end-to-end use of
+  `OnnxRuntime`, `OnnxSession`, and `ModelDownloader` with a real-world model.
+  Output mirrors the Python Magika `--json` format. Run with
+  `dart run bin/magika.dart <file>` or compile with `dart build cli` from inside
+  `example/magika/`.
+
 ## 0.1.0-dev.1
 
 Initial development release.

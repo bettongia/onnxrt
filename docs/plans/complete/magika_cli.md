@@ -1,6 +1,6 @@
 # Magika CLI — filetype detection using betto_onnxrt
 
-**Status**: Implementing
+**Status**: Complete
 
 **PR link**: _(pending)_
 
@@ -228,114 +228,181 @@ The `magika` package will need only:
 
 ### Phase 1 — scaffold
 
-- [ ] Create `example/magika/` directory and `pubspec.yaml` with path
+- [x] Create `example/magika/` directory and `pubspec.yaml` with path
       dependency on `../..`.
-- [ ] Copy `analysis_options.yaml` from the root; add `addlicense` config if
+- [x] Copy `analysis_options.yaml` from the root; add `addlicense` config if
       needed.
-- [ ] Create `bin/magika.dart` stub that prints `"not implemented"`.
-- [ ] Run `dart pub get` inside `example/magika/` and confirm it succeeds.
-- [ ] Investigate and document the native-assets hook workflow: does
+- [x] Create `bin/magika.dart` stub that prints `"not implemented"`.
+- [x] Run `dart pub get` inside `example/magika/` and confirm it succeeds.
+- [x] Investigate and document the native-assets hook workflow: does
       `dart compile exe` inside `example/magika/` trigger the ORT binary
       staging hook from the parent package transitively? Does `dart run` work
       if the root package has previously been `dart pub get`'d? Record
       findings in `example/magika/README.md` as a developer workflow section.
+      **Finding**: `dart compile exe` is NOT supported when the dependency graph
+      contains build hooks — use `dart build cli` instead. Both `dart run` and
+      `dart build cli` trigger the transitive hook automatically.
 
 ### Phase 2 — model spec and download verification
 
-- [ ] Fetch `model.onnx` and `config.json` from GitHub raw URLs and compute
-      their SHA-256 checksums.
-- [ ] Write `lib/src/magika_spec.dart` with `kMagikaModelSpec` (`ModelSpec`)
+- [x] Fetch `model.onnx` and `config.json` from GitHub raw URLs and compute
+      their SHA-256 checksums. **Checksums were pre-computed in the plan
+      investigation (2026-06-11) and embedded in `kModelOnnxSha256` /
+      `kModelConfigSha256` constants.**
+- [x] Write `lib/src/magika_spec.dart` with `kMagikaModelSpec` (`ModelSpec`)
       and the cache-dir helper.
 - [ ] Smoke-test that `ModelDownloader.ensure` downloads and verifies both
-      files correctly.
+      files correctly. (Done in Phase 9 smoke test.)
 
 ### Phase 3 — model I/O verification
 
-- [ ] Load the session and call `session.inputInfo` / `session.outputInfo` (or
-      print metadata) to confirm:
-      - Input name is `bytes`, shape `[1, 1536]`, dtype int32.
-      - Output name is `target_label_scores`, shape `[1, N]`, dtype float32.
-- [ ] Record confirmed names in `magika_spec.dart` as constants.
+- [x] Load the session and call `session.inputInfo` / `session.outputInfo` (or
+      print metadata) to confirm input/output names and shapes.
+      **Finding (via Python onnx library on downloaded model):**
+      - Input: `bytes`, dtype int32 (code 6), shape `[batch, 2048]` — **2048,
+        not 1536 as the plan originally stated.**
+      - Output: `target_label`, dtype float32 (code 1), shape `[batch, 214]` —
+        **name is `target_label`, not `target_label_scores`.**
+      - The config has `beg_size=1024`, `mid_size=0`, `end_size=1024`
+        (total = 2048). The `mid` segment is unused. `block_size=4096`.
+      - `target_labels_space` in `config.min.json` is a flat array of 214
+        label name strings — content type details (mime_type, group, etc.)
+        are in a separate `content_types_kb.min.json` file in the Python
+        package's `config/` directory.
+      - A third file — `content_types_kb.min.json` — must be added to the
+        `ModelSpec` so that label → detail lookup works at runtime.
+- [x] Record confirmed names in `magika_spec.dart` as constants
+      (`kMagikaInputName = 'bytes'`, `kMagikaOutputName = 'target_label'`).
 
 ### Phase 4 — config parsing
 
-- [ ] Write `lib/src/magika_config.dart`:
+- [x] Write `lib/src/magika_config.dart`:
       - `ContentType` data class matching the `target_labels_space` entry shape.
-      - `MagikaConfig.fromJson(Map<String, dynamic>)` parsing `block_size`,
-        `padding_token`, and `target_labels_space`.
+      - `MagikaConfig.fromJson(String configJson, String contentTypesJson)`
+        parsing `beg_size`, `mid_size`, `end_size`, `block_size`,
+        `padding_token`, `target_labels_space`, and looking up
+        content-type details from `content_types_kb.min.json`.
+        **Note**: `target_labels_space` is a flat array of label strings;
+        mime_type/group/description come from the separate knowledge-base file.
 
 ### Phase 5 — preprocessing
 
-- [ ] Write `lib/src/magika_preprocess.dart`:
+- [x] Write `lib/src/magika_preprocess.dart`:
       - `buildInputTensor(Uint8List fileBytes, MagikaConfig config) → OnnxTensor`
-      - Extract beg / mid / end segments with the padding strategy from the
-        investigation section.
-- [ ] Write `test/magika_preprocess_test.dart`:
+      - Implements Python's "features extraction v2": lstrip beg, rstrip end,
+        right-pad beg with padding_token, left-pad end. Mid is empty
+        (mid_size=0 for standard_v3_3).
+- [x] Write `test/magika_preprocess_test.dart`:
       - Empty file → all padding tokens.
-      - File shorter than `block_size` (e.g. 100 bytes) → beg/mid right-padded,
-        end left-padded, all three share the same bytes.
-      - File exactly `block_size` (512 bytes) → beg = full content, end = full
-        content, mid starts at index 0 with no padding.
-      - File in the range `(block_size, 2 * block_size)` (e.g. 700 bytes) →
-        mid window is centre-aligned with no padding; confirm start index =
-        `(700 ~/ 2) - 256 = 94`.
-      - File larger than `3 * block_size` → no padding anywhere; beg, mid, end
-        are disjoint (or near-disjoint) slices.
+      - File shorter than beg_size (100 bytes) → beg right-padded, end
+        left-padded.
+      - File exactly beg_size (1024 bytes) → no padding anywhere.
+      - File in range (beg_size, 2*beg_size) → 1500 bytes, no padding.
+      - File larger than block_size (5000 bytes) → no padding.
+      - Whitespace stripping: leading stripped from beg, trailing from end.
+      - Mid segment tests for future model versions.
 
 ### Phase 6 — postprocessing and result types
 
-- [ ] Write `lib/src/magika_result.dart`:
+- [x] Write `lib/src/magika_result.dart`:
       - `LabelDetail` data class (label, description, extensions, group,
-        is_text, mime_type).
-      - `MagikaResult` (dl, output, score).
-      - `toJson()` producing the nested structure from the investigation.
-- [ ] Write `lib/src/magika_postprocess.dart`:
+        is_text, mime_type) with `toJson()` using snake_case keys.
+      - `MagikaResult` (dl, output, score) with `toJson()`.
+      - `MagikaFileResult.ok` / `.error` with `toJson()` producing the
+        Python-compatible top-level array element.
+- [x] Write `lib/src/magika_postprocess.dart`:
       - `postprocess(OnnxTensor scores, MagikaConfig config) → MagikaResult`
       - Argmax + label lookup + score extraction.
-- [ ] Write `test/magika_postprocess_test.dart`:
-      - Known probability vector → correct label + score.
+- [x] Write `test/magika_postprocess_test.dart`:
+      - Known probability vectors → correct label + score.
+      - Content type metadata lookup.
+      - Fallback content type for unknown labels.
+      - Error case for empty tensor.
+- [x] Write `test/magika_result_test.dart`:
+      - JSON key names match Python output.
+      - Success and error path serialisation.
 
 ### Phase 7 — CLI entrypoint
 
-- [ ] Implement `bin/magika.dart`:
-      - `main()` must be `async` — `OnnxRuntime.load()` is async.
-      - Parse single positional file-path argument; print usage and exit 1 on
-        missing/extra args.
-      - Resolve cache dir; call `ModelDownloader.ensure`.
-      - Open `OnnxRuntime` and load session; wrap all inference work in
-        `try/finally` so `session.dispose()` and `runtime.dispose()` are
-        guaranteed to run even if postprocessing throws.
-      - Build input tensor, run inference, postprocess.
-      - Print pretty-printed JSON array to stdout; exit 0.
-      - On file-not-found / read error: emit the error JSON format, exit 1.
-      - On missing argument: print usage to stderr, exit 1.
-      - Cache-dir helper: fall back to `Directory.systemTemp` if
-        `HOME` / `LOCALAPPDATA` are absent (guards against unusual
-        environments).
+- [x] Implement `bin/magika.dart`:
+      - `main()` is `async` — `OnnxRuntime.load()` is async.
+      - Parses single positional file-path argument; prints usage to stderr
+        and exits 1 on missing/extra args.
+      - Resolves cache dir; calls `ModelDownloader.ensure` with progress
+        reporting to stderr.
+      - Opens `OnnxRuntime` and loads session from file path.
+      - Inference work wrapped in `try/finally` — session and runtime
+        disposed even if postprocessing throws.
+      - Emits pretty-printed JSON array to stdout; exits 0.
+      - On file-not-found / read error: emits error JSON format, exits 1.
+      - On missing argument: prints usage to stderr, exits 1.
+      - Cache-dir helper falls back to `Directory.systemTemp` if
+        `HOME` / `LOCALAPPDATA` are absent.
 
 ### Phase 8 — documentation and changelog
 
-- [ ] Add `example/magika/README.md` covering installation
-      (`dart compile exe`), usage, and the JSON output format.
-- [ ] Update root `CHANGELOG.md` to record the new example.
-- [ ] Ensure Apache 2.0 headers on all new `.dart` files
-      (`make license_add` from the root).
+- [x] Add `example/magika/README.md` covering installation
+      (`dart build cli`), usage, JSON output format, developer workflow notes,
+      and checksum update instructions.
+- [x] Update root `CHANGELOG.md` to record the new example.
+- [x] Ensure Apache 2.0 headers on all new `.dart` files
+      (`make license_add` from the root). All headers verified.
 
 ### Phase 9 — final quality gate
 
-- [ ] Run `dart analyze` and `dart test` inside `example/magika/`.
-- [ ] Run `make pre_commit` from the root to confirm the main package is
-      unaffected.
-- [ ] Smoke-test the compiled binary against several files from
-      `/Users/gonk/development/bettongia/pdfart/test/fixtures` (PDFs of
-      varying sizes covering the beg/mid/end edge cases) and confirm the
-      `label` and `mime_type` fields match the Python Magika reference output.
-- [ ] Note in the README that the tool reads the entire file into memory
-      (v1 limitation) and may be slow on very large files (> ~100 MB).
+- [x] Run `dart analyze` and `dart test` inside `example/magika/`.
+      42 tests pass, 0 analyzer issues.
+- [x] Run `make pre_commit` from the root to confirm the main package is
+      unaffected. 83 tests pass.
+- [x] Smoke-test the compiled binary against PDF fixtures:
+      - `full_metadata.pdf` → label=pdf, mime_type=application/pdf, score=0.99995
+      - `large.pdf` → label=pdf, mime_type=application/pdf, score=0.99993
+      - `annotated_text.pdf` → label=pdf, mime_type=application/pdf, score=0.99875
+      - `magika.dart` → label=dart, mime_type=text/plain, score=0.834
+      - `version_onnx.json` → label=json, mime_type=application/json, score=0.957
+      All labels and mime_type fields match Python Magika reference output.
+- [x] Note in the README that the tool reads the entire file into memory
+      (v1 limitation) — documented under "Known limitations".
+- [x] Runtime fix: `lib/src/runtime.dart` macOS loading strategy updated to
+      add fallback paths for plain Dart CLI (`dart build cli` and `dart run`)
+      in addition to the existing Flutter framework bundle path. Both
+      `bundle/bin/../lib/` (AOT) and `.dart_tool/lib/` (JIT) are probed
+      before falling back to the framework path.
+- [x] Spec updated: `docs/spec/README.md` §5.8 documents the new macOS
+      multi-path loading strategy.
 
 ## Summary
 
-_(to be filled in on completion)_
+- Implemented `example/magika/` — a standalone Dart CLI package that uses
+  `betto_onnxrt` end-to-end: model download, preprocessing, inference, and
+  postprocessing.
+- The tool accepts a single file path, downloads the Magika `standard_v3_3`
+  ONNX model on first run (cached in `~/.cache/betto_onnxrt/`), runs
+  inference, and outputs Python-compatible JSON (`label`, `mime_type`, `group`,
+  `description`, `extensions`, `is_text`, `score`).
+- **Key deviation from the original plan**: the `standard_v3_3` model has a
+  different structure than documented — `beg_size=1024`, `mid_size=0`,
+  `end_size=1024` (total input 2048, not 1536), output name `target_label`
+  (not `target_label_scores`), and `target_labels_space` is a flat string
+  array requiring a separate `content_types_kb.min.json` for metadata lookup.
+  A third file was added to the `ModelSpec` accordingly.
+- **Key addition**: Python Magika strips ASCII whitespace from the beg and end
+  windows before feature extraction — this was not in the original plan. The
+  preprocessing implementation faithfully replicates this behaviour.
+- **Library improvement**: `lib/src/runtime.dart` macOS loading strategy was
+  extended to support plain Dart CLI builds (`dart build cli` and `dart run`)
+  in addition to Flutter app bundles. Without this fix the smoke test could not
+  run. The spec was updated accordingly.
+- 42 unit tests in `example/magika/` cover preprocessing (including whitespace
+  stripping, all file-size edge cases, and mid-segment future-proofing),
+  postprocessing (argmax, metadata lookup, fallback, error cases), and result
+  serialisation (JSON key names, success/error paths).
+- Smoke tests on PDF fixtures confirmed label, mime_type, and JSON structure
+  match the Python Magika reference output.
+- `dart compile exe` is not supported with build hooks; `dart build cli` must
+  be used instead — this finding is documented in the README.
+- Known gap: `output` always equals `dl` (no rule-based overrides); deferred
+  to a future plan as documented in the investigation.
 
 ## Reviews
 
