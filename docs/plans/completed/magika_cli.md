@@ -53,81 +53,106 @@ The Magika `standard_v3_3` model is hosted at:
 ```
 https://github.com/google/magika/raw/main/assets/models/standard_v3_3/model.onnx
 https://github.com/google/magika/raw/main/assets/models/standard_v3_3/config.min.json
+https://raw.githubusercontent.com/google/magika/main/python/src/magika/config/content_types_kb.min.json
 ```
 
 Note: the config file is `config.min.json` — `config.json` does not exist at
-this path (returns HTTP 404). Other files in the directory (`README.md`,
-`metadata.json`) are not required by the implementation.
+this path (returns HTTP 404). Three files are required: the ONNX model, the
+model config (beg/mid/end sizes, padding token, label list), and the
+content-types knowledge base (per-label mime type, group, description,
+extensions). The content-types KB lives in the Python package tree, not the
+model directory.
 
-Both files must be specified in the `ModelSpec`. SHA-256 checksums computed
-from `raw/main` as of 2026-06-11 (floating ref — recompute if Google updates
-the model; see Phase 2):
+All three files must be specified in the `ModelSpec`. SHA-256 checksums
+verified during implementation as of 2026-06-12 (floating ref — recompute if
+Google updates the model; see Phase 2):
 
 | File | SHA-256 |
 |------|---------|
 | `model.onnx` | `fe2d2eb49c5f88a9e0a6c048e15d6ffdf86235519c2afc535044de433169ec8c` |
 | `config.min.json` | `ae24c742205358f6ff6dfd5facb6743fb69743dbba8373e73da58ff0cbd695db` |
+| `content_types_kb.min.json` | `75208adba69bc0556403b62b32ef3ccf8b5ce494411780845852e52e6583a10d` |
 
 ### ONNX input/output format
 
-Based on the Magika Python source and model metadata:
+Verified against the live `standard_v3_3` model during Phase 3:
 
 | Property | Value |
 |---|---|
 | Input name | `bytes` |
-| Input shape | `[1, 1536]` |
+| Input shape | `[1, 2048]` |
 | Input dtype | `int32` |
 | Byte encoding | raw byte values 0–255; out-of-range value `256` used as padding token |
-| Output name | `target_label_scores` |
-| Output shape | `[1, N_LABELS]` where N_LABELS comes from `config.json` |
+| Output name | `target_label` |
+| Output shape | `[1, 214]` (214 content-type labels) |
 | Output dtype | `float32` (softmax probabilities) |
 
-These names and shapes **must be verified** against the live model during
-implementation step 3 (run `dart run bin/inspect_model.dart` or equivalent).
+Note: early investigation assumed `[1, 1536]` / `target_label_scores` — both
+were wrong. The correct values above come from loading the actual model.
 
 ### Preprocessing (`bytes` tensor construction)
 
-Given `block_size = 512` and `padding_token = 256` (both sourced from
-`config.json`), and `n = fileBytes.length`:
+The `standard_v3_3` model uses Google's "features extraction v2" algorithm
+(from `magika/magika.py`, `_extract_features_from_seekable`). All parameters
+are read from `config.min.json` at runtime:
 
-**beg** (right-padded):
+| Parameter | `standard_v3_3` value |
+|---|---|
+| `beg_size` | 1024 |
+| `mid_size` | **0** (mid segment unused) |
+| `end_size` | 1024 |
+| `block_size` | 4096 |
+| `padding_token` | 256 |
+
+Total input vector length = `beg_size + mid_size + end_size` = 2048.
+
+Given `n = fileBytes.length`, with whitespace stripping applied before
+segment extraction:
+
+**beg** (right-padded, leading whitespace stripped):
 ```
-beg = fileBytes[0 : min(n, block_size)]
-      + [padding_token] * max(0, block_size - n)
+raw = fileBytes[0 : min(n, block_size)]
+beg_bytes = raw.lstrip()          # strip ASCII whitespace (0x09–0x0d, 0x20)
+beg = beg_bytes[0 : min(len(beg_bytes), beg_size)]
+      + [padding_token] * max(0, beg_size - len(beg_bytes))
 ```
 
-**end** (left-padded):
+**end** (left-padded, trailing whitespace stripped):
 ```
-end_start = max(0, n - block_size)
-end = [padding_token] * max(0, block_size - (n - end_start))
-      + fileBytes[end_start : n]
+raw = fileBytes[max(0, n - block_size) : n]
+end_bytes = raw.rstrip()          # strip ASCII whitespace
+end = [padding_token] * max(0, end_size - len(end_bytes))
+      + end_bytes[max(0, len(end_bytes) - end_size) : len(end_bytes)]
 ```
 
-**mid** (right-padded, centre-aligned within available bytes):
+**mid** (empty for `standard_v3_3`; included for completeness):
 ```
 mid_start = max(0, n ~/ 2 - block_size ~/ 2)
-mid = fileBytes[mid_start : min(n, mid_start + block_size)]
-      + [padding_token] * max(0, block_size - (min(n, mid_start + block_size) - mid_start))
+mid_window = fileBytes[mid_start : min(n, mid_start + block_size)]
+mid = mid_window[0 : min(len(mid_window), mid_size)]
+      + [padding_token] * max(0, mid_size - len(mid_window))
 ```
 
-Concatenate `[beg, mid, end]` → int32 list of length 1536, then wrap as
-`OnnxTensor.fromInt32([1, 1536], Int32List.fromList(concat))`.
+Concatenate `[beg, mid, end]` → int32 list of length 2048, then wrap as
+`OnnxTensor.fromInt32([1, 2048], Int32List.fromList(concat))`.
 
-Key padding asymmetries (from the Python Magika source):
+Key padding asymmetries:
 - **beg**: padding appended at the right.
-- **end**: padding prepended at the left (so actual file bytes are always at
-  the end of the buffer).
+- **end**: padding prepended at the left (actual file bytes always at the end).
 - **mid**: padding appended at the right.
 
-For very short files (n < block_size) all three segments overlap on the same
-bytes, but the padding positions differ — the padding strategy is still
-correct because padding is deterministic per-segment regardless of overlap.
+Note: the original investigation assumed no whitespace stripping and used
+`block_size = 512` for all three segments. Both were wrong — the actual
+algorithm uses a 4096-byte read window and strips ASCII whitespace before
+extracting the beg/end segments.
 
 ### Postprocessing
 
-1. Read `target_label_scores` output tensor as `Float32List`.
+1. Read `target_label` output tensor as `Float32List` (via `.asFloat32()`).
 2. Find the argmax index `i`.
-3. Look up `config.json`'s `target_labels_space[i]` which has the shape:
+3. Look up `config.min.json`'s `target_labels_space[i]` to get the label
+   string, then look up that label in `content_types_kb.min.json` which has
+   the shape:
    ```json
    {
      "name": "pdf",
@@ -224,6 +249,13 @@ The `magika` package will need only:
 - No additional pub dependencies; `dart:convert`, `dart:io`, `dart:typed_data`
   cover JSON, file I/O, and tensor construction.
 
+### Build note
+
+`dart compile exe` is **not supported** when the dependency graph contains
+native-assets build hooks. Use `dart build cli` to produce an AOT binary;
+the hook bundles the ORT dylib at `bundle/lib/` automatically. `dart run`
+also works directly and triggers the hook transitively.
+
 ## Implementation plan
 
 ### Phase 1 — scaffold
@@ -251,7 +283,7 @@ The `magika` package will need only:
       `kModelConfigSha256` constants.**
 - [x] Write `lib/src/magika_spec.dart` with `kMagikaModelSpec` (`ModelSpec`)
       and the cache-dir helper.
-- [ ] Smoke-test that `ModelDownloader.ensure` downloads and verifies both
+- [x] Smoke-test that `ModelDownloader.ensure` downloads and verifies both
       files correctly. (Done in Phase 9 smoke test.)
 
 ### Phase 3 — model I/O verification
@@ -420,19 +452,25 @@ The plan is generally well thought-out and the investigation section is detailed
 
 ~~The current `OnnxSession._copyTensorData` implementation (session.dart:426–442) unconditionally casts the output pointer to `float32` and returns `OnnxElementType.float32`. This is correct for the Magika `target_label_scores` output (which is float32), but it is worth noting explicitly in the plan because the postprocessing step calls `session.run(outputs: ['target_label_scores'])` and the caller must use `.asFloat32()` — not a dynamic cast — or risk a `StateError`. The plan should call this out in the Phase 6 implementation notes so the implementer does not write defensive type-switching code that is currently not supported by the API.~~
 
-**Resolved (Goal 3 complete).** `_copyTensorData` now reads the element type from the native `OrtTensorTypeAndShapeInfo` via `GetTensorElementType` (slot 60) and copies into the appropriate `TypedData` subtype. For Magika's `target_label_scores` output (float32), `run()` returns an `OnnxTensor` with `elementType == OnnxElementType.float32` and `data` already typed as `Float32List`. The postprocessor should use `.asFloat32()` — this is safe and idiomatic with the current API.
+**Resolved (Goal 3 complete).** `_copyTensorData` now reads the element type from the native `OrtTensorTypeAndShapeInfo` via `GetTensorElementType` (slot 60) and copies into the appropriate `TypedData` subtype. For Magika's `target_label` output (float32), `run()` returns an `OnnxTensor` with `elementType == OnnxElementType.float32` and `data` already typed as `Float32List`. The postprocessor uses `.asFloat32()` — this is safe and idiomatic with the current API.
 
 **Critical: native-assets hook inheritance in sub-packages**
 
 The `magika` example package is a separate `pubspec.yaml` under `example/magika/`. When `dart pub get` runs inside that package, it inherits the `betto_onnxrt` path dependency but **the native-assets build hook in `hook/build.dart` is only triggered when the package that declares the `hooks` dependency runs its build step**. A separate package with a `path: ../../` dep will trigger the hook transitively through `dart compile exe`, but this must be verified. If `dart run bin/magika.dart` (interpreted mode) does not trigger hook resolution — which is likely, since the hook is defined on the parent package — Phase 7's development loop will silently fail to find the ORT library until a full `dart compile exe` build is done. The plan should note this constraint and clarify that development testing must either use `dart compile exe` or rely on the parent package having already staged the ORT binary (i.e. `dart pub get` at the root, then running the binary from the root's `.dart_tool/` cache location). This could significantly slow the development iteration cycle.
 
+**Resolved.** `dart compile exe` is not supported at all with build hooks (Dart rejects it). `dart run` and `dart build cli` both trigger the hook transitively. No manual root-level setup required — documented in `example/magika/README.md`.
+
 **Critical: `mid` segment extraction algorithm is underspecified**
 
 The plan describes the mid extraction as: "centre-aligned 512 bytes; pad symmetrically with the padding token." For the edge case of files between 512 and 1024 bytes, the centre calculation `bytes.length ~/ 2` will produce a mid-start index such that the 512-byte window extends beyond the file. The plan says "pad the remainder" but does not specify whether the padding goes at the start, the end, or both sides of the mid window. The Python Magika implementation places the mid window by taking `(file_len - block_size) ~/ 2` as the start offset for files longer than `block_size` (centre-aligning in the available file bytes), and using pure padding when the file is shorter than `block_size`. The plan's description is ambiguous for files in the 513–1023 byte range: the test cases in Phase 5 do not cover this range explicitly. A test case for "file between `block_size` and `2 * block_size`" must be added to ensure mid extraction is correct.
 
+**Resolved.** `mid_size=0` for `standard_v3_3` — the mid segment is unused. The algorithm is documented in the investigation section for future model versions; tests include a `mid_size > 0` case for completeness.
+
 **Moderate: `output == dl` divergence from Python reference**
 
 The plan explicitly defers rule-based overrides (the `output != dl` case in small-file detection) to a future plan. This is a deliberate scope decision, which is fine. However, the plan does not specify what exit code the CLI should use when it produces the error JSON variant. The Python Magika CLI exits 1 on file errors and 0 on successful inference even for low-confidence results. Phase 7 mentions "exit 1" for file-not-found/read errors, which is correct, but omits the exit code for the success path — this should be made explicit (exit 0).
+
+**Resolved.** Exit codes documented explicitly: 0 = success, 1 = file error or missing argument.
 
 **Moderate: no `asInt32()` helper on `OnnxTensor`**
 
@@ -444,6 +482,8 @@ The plan explicitly defers rule-based overrides (the `output != dl` case in smal
 
 The plan states "checksums are not known at plan time and must be fetched and recorded during implementation." This is acceptable for an example tool (unlike a library with released checksums), but Phase 2 should explicitly specify that checksums are computed from the files as downloaded from the tagged commit ref in the URL, not `main`, to prevent non-reproducibility from GitHub's `main` branch moving. The URLs currently point to `raw/main/assets/models/...` — this is a floating ref and the SHA-256 will change whenever Google updates their model. The plan should either pin to a tagged commit (e.g. `raw/refs/tags/v3.3.0/...`) or acknowledge that the checksum must be re-computed on each model update.
 
+**Resolved.** Floating `raw/main/` URLs accepted; checksum update procedure documented in `magika_spec.dart` and `README.md`.
+
 **Architecture Fit**
 
 This is a pure-Dart CLI in `example/magika/`. The library-architecture skill's checks are not applicable here (no `lib/<package>.dart` barrel for a CLI tool, no Flutter dependency, no widgets). The tool correctly uses only the Core API surface (`OnnxRuntime`, `OnnxSession`, `ModelDownloader`, `ModelSpec`), all of which are public and well-documented. Placement as an example sub-package is consistent with how Dart ecosystem examples are structured.
@@ -453,33 +493,22 @@ The `design` and `inclusivity` skills do not apply — this is a non-interactive
 **Risk & Edge Cases**
 
 1. **Floating model URL (rated: high).** The GitHub raw `main` URL means the SHA-256 in `magika_spec.dart` will silently fail verification the moment Google pushes a new model to `main`. Fix: pin to a tagged commit ref.
+   **Resolution**: Accepted as a known limitation. Update procedure documented in `magika_spec.dart` and README.
 
-2. **Very large files (rated: moderate).** The preprocessing step reads the entire file into `Uint8List` via `File.readAsBytesSync()` (implied by the plan). Only 1536 bytes are ever used. For a 4 GB ISO image this allocates 4 GB in one shot. The plan should limit file reads to a streaming approach: read the first 512 bytes, seek to the midpoint for 512 bytes, and seek to the last 512 bytes — or at least document the current "read everything" behaviour as a known limitation.
+2. **Very large files (rated: moderate).** The preprocessing step reads the entire file into `Uint8List` via `File.readAsBytesSync()` (implied by the plan). Only 2048 bytes are ever used. For a 4 GB ISO image this allocates 4 GB in one shot. The plan should limit file reads to a streaming approach: read the first 1024 bytes, seek to the last 1024 bytes — or at least document the current "read everything" behaviour as a known limitation.
+   **Resolution**: Documented in README under "Known limitations".
 
 3. **Session dispose on error path (rated: moderate).** Phase 7 says "dispose session and runtime before exit." If postprocessing throws (e.g. argmax on an empty tensor) the current plan's implied structure (`try/catch` at the top level) should ensure dispose still runs. The plan should require that dispose is in a `try/finally` block, not merely described as "before exit."
+   **Resolution**: Implemented with `try/finally` in `bin/magika.dart`.
 
 4. **Windows cache dir (rated: low).** The plan uses `%LOCALAPPDATA%\betto_onnxrt\cache\`. On some Windows configurations `LOCALAPPDATA` is unset. The cache-dir helper should fall back to `%APPDATA%` or `Directory.systemTemp` rather than throwing a `NullPointerException`.
+   **Resolution**: `resolveModelCacheDir()` falls back to `%APPDATA%` then `Directory.systemTemp`.
 
 5. **The `asFloat32()` helper will throw a `StateError` if the model is upgraded to output int32.** This is not a risk for Magika v3.3 (confirmed float32 output) but should be documented in `magika_postprocess.dart`.
-
-**Recommendations**
-
-1. **Pin the model URL to a tagged commit or a specific commit SHA** rather than `raw/main/`. Add a comment in `magika_spec.dart` explaining how to update the URLs and recompute checksums on a model upgrade.
-
-2. **Document the native-assets hook constraint** in Phase 1 and 2: add a note that `dart run` from inside `example/magika/` requires the ORT binary to already be staged (by running `dart pub get` at the repository root), and that `dart compile exe` handles this automatically. Alternatively, add a `Makefile` target in `example/magika/` that does the right thing.
-
-3. **Add a test case for files in the 513–1023 byte range** in `magika_preprocess_test.dart` to verify mid-segment centre-alignment, and write out the exact algorithm (start index computation) in the plan's investigation section rather than the ambiguous prose currently there.
-
-4. **Specify exit codes explicitly** for all three exit paths in Phase 7: success (0), file-not-found/read-error (1), missing argument (1).
-
-5. **Add a large-file note** to the Phase 5 investigation. If full-file reads are intentional for v1, document the limitation. If streaming is preferred, add a Phase 5 sub-task for it.
-
-6. **Wrap dispose in `try/finally`** in the Phase 7 CLI entrypoint description.
-
-The plan is close to implementation-ready but these issues — particularly the floating URL / SHA-256 problem, the native-assets hook inheritance ambiguity, and the underspecified mid-segment algorithm — need resolution first. The plan should not proceed to `Implemented` until those three items are addressed.
+   **Resolution**: Documented in `magika_postprocess.dart`.
 
 **Open questions**
 
-- [ ] Should the model URLs be pinned to a tagged git ref or specific commit SHA rather than `raw/main/`? If Google does not publish tagged releases with stable raw URLs, what is the fallback strategy (bundle known-good URLs with a documented update procedure)?
-- [ ] Has the native-assets hook been verified to trigger correctly when `dart compile exe` is run inside `example/magika/` (i.e. the hook on the transitive path dependency resolves the ORT binary)? If not, what is the recommended development workflow?
-- [ ] What is the exact mid-segment algorithm for files in the range `(block_size, 2 * block_size)`? Specifically: is the mid window start computed as `(file_len - block_size) ~/ 2`, and is padding applied at the start or end of the mid buffer when the window is smaller than `block_size`?
+- [x] Should the model URLs be pinned to a tagged git ref or specific commit SHA rather than `raw/main/`? If Google does not publish tagged releases with stable raw URLs, what is the fallback strategy (bundle known-good URLs with a documented update procedure)?
+- [x] Has the native-assets hook been verified to trigger correctly when `dart compile exe` is run inside `example/magika/` (i.e. the hook on the transitive path dependency resolves the ORT binary)? If not, what is the recommended development workflow?
+- [x] What is the exact mid-segment algorithm for files in the range `(block_size, 2 * block_size)`? Specifically: is the mid window start computed as `(file_len - block_size) ~/ 2`, and is padding applied at the start or end of the mid buffer when the window is smaller than `block_size`?
