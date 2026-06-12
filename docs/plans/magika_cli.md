@@ -1,6 +1,6 @@
 # Magika CLI — filetype detection using betto_onnxrt
 
-**Status**: Investigated
+**Status**: Implementing
 
 **PR link**: _(pending)_
 
@@ -298,6 +298,7 @@ The `magika` package will need only:
 ### Phase 7 — CLI entrypoint
 
 - [ ] Implement `bin/magika.dart`:
+      - `main()` must be `async` — `OnnxRuntime.load()` is async.
       - Parse single positional file-path argument; print usage and exit 1 on
         missing/extra args.
       - Resolve cache dir; call `ModelDownloader.ensure`.
@@ -350,7 +351,9 @@ The plan is generally well thought-out and the investigation section is detailed
 
 **Critical: `_copyTensorData` always returns float32 regardless of element type**
 
-The current `OnnxSession._copyTensorData` implementation (session.dart:426–442) unconditionally casts the output pointer to `float32` and returns `OnnxElementType.float32`. This is correct for the Magika `target_label_scores` output (which is float32), but it is worth noting explicitly in the plan because the postprocessing step calls `session.run(outputs: ['target_label_scores'])` and the caller must use `.asFloat32()` — not a dynamic cast — or risk a `StateError`. The plan should call this out in the Phase 6 implementation notes so the implementer does not write defensive type-switching code that is currently not supported by the API.
+~~The current `OnnxSession._copyTensorData` implementation (session.dart:426–442) unconditionally casts the output pointer to `float32` and returns `OnnxElementType.float32`. This is correct for the Magika `target_label_scores` output (which is float32), but it is worth noting explicitly in the plan because the postprocessing step calls `session.run(outputs: ['target_label_scores'])` and the caller must use `.asFloat32()` — not a dynamic cast — or risk a `StateError`. The plan should call this out in the Phase 6 implementation notes so the implementer does not write defensive type-switching code that is currently not supported by the API.~~
+
+**Resolved (Goal 3 complete).** `_copyTensorData` now reads the element type from the native `OrtTensorTypeAndShapeInfo` via `GetTensorElementType` (slot 60) and copies into the appropriate `TypedData` subtype. For Magika's `target_label_scores` output (float32), `run()` returns an `OnnxTensor` with `elementType == OnnxElementType.float32` and `data` already typed as `Float32List`. The postprocessor should use `.asFloat32()` — this is safe and idiomatic with the current API.
 
 **Critical: native-assets hook inheritance in sub-packages**
 
@@ -366,7 +369,9 @@ The plan explicitly defers rule-based overrides (the `output != dl` case in smal
 
 **Moderate: no `asInt32()` helper on `OnnxTensor`**
 
-The plan (Phase 5) constructs the input tensor with `OnnxTensor.fromInt32(...)`, which is correct and already available in `tensor.dart`. No gap here for the input side. On the output side, the output tensor for Magika is float32, so `asFloat32()` suffices. No new API surface is needed — but this should be confirmed in the plan.
+~~The plan (Phase 5) constructs the input tensor with `OnnxTensor.fromInt32(...)`, which is correct and already available in `tensor.dart`. No gap here for the input side. On the output side, the output tensor for Magika is float32, so `asFloat32()` suffices. No new API surface is needed — but this should be confirmed in the plan.~~
+
+**Resolved (Goal 3 complete).** `asInt32()` now exists on `OnnxTensor` (tensor.dart). Both `OnnxTensor.fromInt32` (input construction) and `asFloat32()` (output access) are available. No new API surface is needed for Magika.
 
 **Minor: SHA-256 deferred to implementation**
 
