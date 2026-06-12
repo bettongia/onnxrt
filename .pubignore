@@ -1,5 +1,5 @@
 .claude
-.dart-tool
+.dart_tool
 build/
 coverage/
 doc/
@@ -9,3 +9,9 @@ Makefile
 VERSION_ONNX
 addlicense_config.txt
 tool/
+downloads/
+docs/
+logs/
+packages/
+header_template.txt
+CLAUDE.md

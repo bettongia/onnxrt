@@ -318,8 +318,8 @@ final class OnnxSession {
   /// returned list has the same length and ordering as [outputNames].
   ///
   /// Each output [OnnxTensor] has its [OnnxTensor.shape] populated from the
-  /// native output via [GetTensorTypeAndShapeInfo] / [GetDimensionsCount] /
-  /// [GetDimensions] (vtable slots 65/61/62). This allows callers to reshape
+  /// native output via `GetTensorTypeAndShapeInfo` / `GetDimensionsCount` /
+  /// `GetDimensions` (vtable slots 65/61/62). This allows callers to reshape
   /// output data without knowing the model's output shape in advance.
   ///
   /// All native [OrtValue] handles are released before returning.
