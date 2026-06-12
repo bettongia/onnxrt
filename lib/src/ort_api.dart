@@ -237,9 +237,24 @@ typedef GetTensorMutableDataC =
 typedef GetTensorMutableDataDart =
     Pointer<OrtStatus> Function(Pointer<OrtValue>, Pointer<Pointer<Void>>);
 
-// slots 52–60: FillStringTensor, GetStringTensorDataLength, GetStringTensorContent,
+// slots 52–59: FillStringTensor, GetStringTensorDataLength, GetStringTensorContent,
 //              CastTypeInfoToTensorInfo, GetOnnxTypeFromTypeInfo, CreateTensorTypeAndShapeInfo,
-//              SetTensorElementType, SetDimensions, GetTensorElementType  [all unused]
+//              SetTensorElementType, SetDimensions  [all unused]
+
+// slot 60: OrtStatus* GetTensorElementType(const OrtTensorTypeAndShapeInfo*, enum ONNXTensorElementDataType*)
+// The out-param is `ONNXTensorElementDataType*` — the same C enum bound as Int32
+// at slot 49 (CreateTensorWithDataAsOrtValue). Use Pointer<Int32> for consistency.
+// SLOT:GetTensorElementType=60
+typedef GetTensorElementTypeC =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Int32>,
+    );
+typedef GetTensorElementTypeDart =
+    Pointer<OrtStatus> Function(
+      Pointer<OrtTensorTypeAndShapeInfo>,
+      Pointer<Int32>,
+    );
 
 // slot 61: OrtStatus* GetDimensionsCount(const OrtTensorTypeAndShapeInfo*, size_t*)
 // SLOT:GetDimensionsCount=61

@@ -215,10 +215,11 @@ output tensor has an unsupported element type.
 handles. Must be called exactly once; calling `run` after `dispose` is
 undefined behaviour.
 
-**Output element type (v0.1.0 constraint)**: `run` always returns
-`OnnxElementType.float32` output tensors regardless of the model's declared
-output type. Full element-type introspection via slot 35 is planned for a
-future version. See §8.
+**Output element type**: `run` reads the element type from each output
+`OrtValue` via `GetTensorElementType` (vtable slot 60) and returns the correct
+`OnnxElementType` (float32, uint8, int32, int64, or float64) for every output
+tensor. The `data` field of each returned `OnnxTensor` is the matching
+`TypedData` subtype — see the type-mapping table in §5.3.
 
 ### 5.3 OnnxTensor and OnnxElementType
 
@@ -240,9 +241,12 @@ final class OnnxTensor {
   factory OnnxTensor.fromInt64(List<int> shape, Int64List data);
   factory OnnxTensor.fromUint8(List<int> shape, Uint8List data);
 
-  // Typed accessors:
+  // Typed accessors (each throws StateError if called on the wrong type):
   Float32List asFloat32();
-  Int64List asInt64();
+  Uint8List   asUint8();
+  Int32List   asInt32();
+  Int64List   asInt64();
+  Float64List asFloat64();
 }
 ```
 
@@ -558,14 +562,6 @@ v0.1.0 uses only the default ORT CPU execution provider. GPU acceleration
 (CUDA on Windows/Linux, CoreML on macOS/iOS, NNAPI on Android) is not exposed.
 Adding execution provider support requires extending `SessionOptions` and the
 session creation path; this is tracked for a future version.
-
-### Output element type always float32
-
-`OnnxSession.run` currently returns all output tensors as `OnnxElementType.float32`
-regardless of the model's declared output type. Reading the actual element type
-from the native `OrtValue` via vtable slot 35 (`GetTensorElementType`) is
-planned for v0.2.0. Models that produce non-float32 outputs (e.g. classifier
-logits as `int64`) will have their data misinterpreted in v0.1.0.
 
 ### ONNX external data format not supported via in-memory loading
 

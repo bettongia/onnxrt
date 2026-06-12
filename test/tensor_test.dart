@@ -208,6 +208,60 @@ void main() {
       });
     });
 
+    group('asUint8', () {
+      test('returns Uint8List for uint8 tensor', () {
+        final data = Uint8List.fromList([10, 20, 30]);
+        final tensor = OnnxTensor.fromUint8([3], data);
+        expect(tensor.asUint8(), same(data));
+      });
+
+      test('throws StateError for non-uint8 tensor', () {
+        final tensor = OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
+        expect(() => tensor.asUint8(), throwsA(isA<StateError>()));
+      });
+
+      test('StateError message names the actual element type', () {
+        final tensor = OnnxTensor.fromInt64([1], Int64List(1));
+        expect(
+          () => tensor.asUint8(),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('int64'),
+            ),
+          ),
+        );
+      });
+    });
+
+    group('asInt32', () {
+      test('returns Int32List for int32 tensor', () {
+        final data = Int32List.fromList([100, 200, 300]);
+        final tensor = OnnxTensor.fromInt32([3], data);
+        expect(tensor.asInt32(), same(data));
+      });
+
+      test('throws StateError for non-int32 tensor', () {
+        final tensor = OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
+        expect(() => tensor.asInt32(), throwsA(isA<StateError>()));
+      });
+
+      test('StateError message names the actual element type', () {
+        final tensor = OnnxTensor.fromUint8([1], Uint8List(1));
+        expect(
+          () => tensor.asInt32(),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('uint8'),
+            ),
+          ),
+        );
+      });
+    });
+
     group('asInt64', () {
       test('returns Int64List for int64 tensor', () {
         final data = Int64List.fromList([42, 43]);
@@ -218,6 +272,33 @@ void main() {
       test('throws StateError for non-int64 tensor', () {
         final tensor = OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
         expect(() => tensor.asInt64(), throwsA(isA<StateError>()));
+      });
+    });
+
+    group('asFloat64', () {
+      test('returns Float64List for float64 tensor', () {
+        final data = Float64List.fromList([1.5, 2.5, 3.5]);
+        final tensor = OnnxTensor.fromFloat64([3], data);
+        expect(tensor.asFloat64(), same(data));
+      });
+
+      test('throws StateError for non-float64 tensor', () {
+        final tensor = OnnxTensor.fromFloat32([1], Float32List.fromList([1.0]));
+        expect(() => tensor.asFloat64(), throwsA(isA<StateError>()));
+      });
+
+      test('StateError message names the actual element type', () {
+        final tensor = OnnxTensor.fromInt32([1], Int32List(1));
+        expect(
+          () => tensor.asFloat64(),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('int32'),
+            ),
+          ),
+        );
       });
     });
 

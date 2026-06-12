@@ -306,6 +306,141 @@ void main() {
     );
   });
 
+  // ── Non-float32 output types ───────────────────────────────────────────────
+  //
+  // These tests exercise the _copyTensorData branches in session.dart for
+  // element types other than float32.  They are gated on the same ORT
+  // availability check as the identity-model tests above, so they are skipped
+  // under plain `dart test` on macOS (where the ORT dylib is not on the
+  // dynamic-linker path after a JIT run) and only execute on Linux/Windows CI
+  // (where the hook has staged the ORT binary) and via `make macos_test`.
+  //
+  // A minimal ONNX identity fixture is used for each type — the fixture is
+  // committed to test/fixtures/ and carries no weights.
+
+  group('OnnxSession — non-float32 output', () {
+    late OnnxRuntime runtime;
+
+    setUp(() async {
+      if (!ortAvailable) return;
+      runtime = await OnnxRuntime.load();
+    });
+
+    tearDown(() {
+      if (!ortAvailable) return;
+      runtime.dispose();
+    });
+
+    test(
+      'uint8 identity model: elementType==uint8 and values preserved',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // identity_uint8.onnx: input/output uint8[1,4], elem_type=2.
+        // The _copyTensorData uint8 branch allocates a Uint8List and copies
+        // each element via rawPtr.cast<Uint8>()[i].
+        final fixturePath =
+            '${_packageRoot()}/test/fixtures/identity_uint8.onnx';
+        final session = runtime.createSessionFromFile(fixturePath);
+        addTearDown(session.dispose);
+
+        final inputData = Uint8List.fromList([10, 20, 30, 40]);
+        final input = OnnxTensor.fromUint8([1, 4], inputData);
+
+        final outputs = session.run(
+          inputs: {'input': input},
+          outputNames: ['output'],
+        );
+
+        expect(outputs, hasLength(1));
+        expect(outputs[0].elementType, equals(OnnxElementType.uint8));
+        expect(outputs[0].shape, equals([1, 4]));
+        expect(outputs[0].asUint8(), equals([10, 20, 30, 40]));
+      },
+    );
+
+    test(
+      'int32 identity model: elementType==int32 and values preserved',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // identity_int32.onnx: input/output int32[1,4], elem_type=6.
+        // The _copyTensorData int32 branch allocates an Int32List and copies
+        // each element via rawPtr.cast<Int32>()[i].
+        final fixturePath =
+            '${_packageRoot()}/test/fixtures/identity_int32.onnx';
+        final session = runtime.createSessionFromFile(fixturePath);
+        addTearDown(session.dispose);
+
+        final inputData = Int32List.fromList([100, 200, 300, 400]);
+        final input = OnnxTensor.fromInt32([1, 4], inputData);
+
+        final outputs = session.run(
+          inputs: {'input': input},
+          outputNames: ['output'],
+        );
+
+        expect(outputs, hasLength(1));
+        expect(outputs[0].elementType, equals(OnnxElementType.int32));
+        expect(outputs[0].shape, equals([1, 4]));
+        expect(outputs[0].asInt32(), equals([100, 200, 300, 400]));
+      },
+    );
+
+    test(
+      'int64 identity model: elementType==int64 and values preserved',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // identity_int64.onnx: input/output int64[1,4], elem_type=7.
+        // The _copyTensorData int64 branch allocates an Int64List and copies
+        // each element via rawPtr.cast<Int64>()[i].
+        final fixturePath =
+            '${_packageRoot()}/test/fixtures/identity_int64.onnx';
+        final session = runtime.createSessionFromFile(fixturePath);
+        addTearDown(session.dispose);
+
+        final inputData = Int64List.fromList([1, 2, 3, 4]);
+        final input = OnnxTensor.fromInt64([1, 4], inputData);
+
+        final outputs = session.run(
+          inputs: {'input': input},
+          outputNames: ['output'],
+        );
+
+        expect(outputs, hasLength(1));
+        expect(outputs[0].elementType, equals(OnnxElementType.int64));
+        expect(outputs[0].shape, equals([1, 4]));
+        expect(outputs[0].asInt64(), equals([1, 2, 3, 4]));
+      },
+    );
+
+    test(
+      'float64 identity model: elementType==float64 and values preserved',
+      skip: ortAvailable ? false : _skipMessage,
+      () {
+        // identity_float64.onnx: input/output float64[1,4], elem_type=11.
+        // The _copyTensorData float64 branch allocates a Float64List and copies
+        // each element via rawPtr.cast<Double>()[i].
+        final fixturePath =
+            '${_packageRoot()}/test/fixtures/identity_float64.onnx';
+        final session = runtime.createSessionFromFile(fixturePath);
+        addTearDown(session.dispose);
+
+        final inputData = Float64List.fromList([1.1, 2.2, 3.3, 4.4]);
+        final input = OnnxTensor.fromFloat64([1, 4], inputData);
+
+        final outputs = session.run(
+          inputs: {'input': input},
+          outputNames: ['output'],
+        );
+
+        expect(outputs, hasLength(1));
+        expect(outputs[0].elementType, equals(OnnxElementType.float64));
+        expect(outputs[0].shape, equals([1, 4]));
+        // Float64 round-trips through ORT identity without precision loss.
+        expect(outputs[0].asFloat64(), equals([1.1, 2.2, 3.3, 4.4]));
+      },
+    );
+  });
+
   // KNOWN: cross-isolate use is UB — not automated; documented in OnnxSession
   // class docstring. Calling run() or dispose() from isolate B on a session
   // created in isolate A triggers undefined behaviour at the ORT level (mutex

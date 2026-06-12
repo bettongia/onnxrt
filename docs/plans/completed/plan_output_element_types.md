@@ -1,6 +1,6 @@
 # Output element-type introspection
 
-**Status**: Investigated
+**Status**: Complete
 
 **PR link**: —
 
@@ -149,63 +149,63 @@ consistency with the documented API contract.
 
 ## Implementation plan
 
-- [ ] **Slot 60 typedef** — add `GetTensorElementTypeC` / `GetTensorElementTypeDart`
+- [x] **Slot 60 typedef** — add `GetTensorElementTypeC` / `GetTensorElementTypeDart`
   to `lib/src/ort_api.dart` with `// SLOT:GetTensorElementType=60` marker. Bind
   the `out` parameter as `Pointer<Int32>`, matching the existing slot-49
   binding of the same C enum (`ONNXTensorElementDataType`) — not `Uint32`.
   Update the slot-range comment ("slots 52–60") to mark `GetTensorElementType`
   as now bound.
 
-- [ ] **Slot guard golden** — add `'GetTensorElementType': 60` to
+- [x] **Slot guard golden** — add `'GetTensorElementType': 60` to
   `_expectedSlotsV22` in `test/ort_slot_guard_test.dart`. Verify
   `make pre_commit` passes (the count assertion will update automatically).
 
-- [ ] **Fix stale slot-35 comments** — update the three "slot 35" references in
+- [x] **Fix stale slot-35 comments** — update the three "slot 35" references in
   `session.dart`'s `_copyTensorData` docstring and inline comments to "slot 60".
 
-- [ ] **Wire GetTensorElementType into the output loop** — in `session.dart`'s
+- [x] **Wire GetTensorElementType into the output loop** — in `session.dart`'s
   `run()` method, after `GetDimensions` and before `ReleaseTensorTypeAndShapeInfo`,
   call `GetTensorElementType(ttasi)` to obtain the raw type code. Pass it to
   `_copyTensorData`.
 
-- [ ] **Fix `_copyTensorData`** — change the signature to accept the type code
+- [x] **Fix `_copyTensorData`** — change the signature to accept the type code
   as a third argument. Use `OnnxElementType.fromOnnxTypeCode` to resolve the
   type, then branch on it to copy raw bytes into the correct `TypedData` subtype
   (`Float32List`, `Uint8List`, `Int32List`, `Int64List`, `Float64List`). Use
   `rawPtr.cast<T>()` and element-wise copy for each branch (same pattern as the
   existing float32 branch).
 
-- [ ] **Add missing typed accessors** — add `asUint8()`, `asInt32()`, and
+- [x] **Add missing typed accessors** — add `asUint8()`, `asInt32()`, and
   `asFloat64()` to `OnnxTensor` in `tensor.dart`, mirroring the existing
   `asFloat32()` and `asInt64()` pattern.
 
-- [ ] **Test fixture** — extend the existing pure-Dart
+- [x] **Test fixture** — extend the existing pure-Dart
   `tool/generate_test_fixture.dart` so its `_typeProto` accepts an element-type
   code (parameterise the hardcoded `elem_type = 1`), then run it to emit
   `test/fixtures/identity_int64.onnx` (`int64`, `elem_type = 7`). Check the
   `.onnx` binary in. Do NOT add a Python generator.
 
-- [ ] **Accessor unit tests** — in `test/tensor_test.dart`, add unit tests for
+- [x] **Accessor unit tests** — in `test/tensor_test.dart`, add unit tests for
   the three new accessors (`asUint8`, `asInt32`, `asFloat64`), mirroring the
   existing `asFloat32`/`asInt64` tests: cover both the success path and the
   `StateError` path (accessor called on a tensor of the wrong element type).
   These are pure-Dart, run in every CI lane, and keep the new accessors above
   the 90% coverage gate without needing real ORT.
 
-- [ ] **Copy-branch coverage** — ensure all five `_copyTensorData` branches
+- [x] **Copy-branch coverage** — ensure all five `_copyTensorData` branches
   (float32, uint8, int32, int64, float64) are exercised by tests, not just
   `int64`. Where a real-ORT inference fixture is impractical for a given type,
   cover the branch via a direct unit test against the copy logic so no branch
   is left uncovered. Coverage must stay above 90%.
 
-- [ ] **Integration test** — add a test group `'OnnxSession — non-float32
+- [x] **Integration test** — add a test group `'OnnxSession — non-float32
   output'` to `test/onnx_session_test.dart`. Test: load `identity_int64.onnx`,
   run with an `int64` input, assert `elementType == OnnxElementType.int64` and
   `asInt64()` returns the correct values. Follows the same skip-if-no-ORT guard
   as existing session tests (so this runs with real ORT only on Linux/Windows
   CI and `make macos_test`, and skips under plain `dart test` on macOS).
 
-- [ ] **Update spec** — edit the three concrete locations in
+- [x] **Update spec** — edit the three concrete locations in
   `docs/spec/README.md` identified in Review 1:
   - §5.2 (`:218–221`) — the "Output element type (v0.1.0 constraint)"
     paragraph; remove the float32-only caveat and the stale "slot 35" reference,
@@ -216,9 +216,9 @@ consistency with the documented API contract.
     section (also contains a stale "slot 35" reference and a "planned for
     v0.2.0" promise); delete it or rewrite it as resolved.
 
-- [ ] **Update roadmap** — mark Goal 3 as 100% in `docs/roadmap/v0.md`.
+- [x] **Update roadmap** — mark Goal 3 as 100% in `docs/roadmap/v0.md`.
 
-- [ ] **Run `make pre_commit`** and verify all tests pass.
+- [x] **Run `make pre_commit`** and verify all tests pass.
 
 - [ ] **Submit PR** — include evidence of a passing `make macos_test` or
   `make linux_test` run in the PR description (new slot binding requires real
@@ -405,4 +405,44 @@ Status set to `Investigated`.
 
 ## Summary
 
-_To be completed after implementation._
+- Added `GetTensorElementTypeC`/`GetTensorElementTypeDart` typedef pair to
+  `lib/src/ort_api.dart` with `// SLOT:GetTensorElementType=60` marker and
+  `Pointer<Int32>` out-param (matching the slot-49 `ONNXTensorElementDataType`
+  convention). Updated the slot-range comment to show slot 60 as bound.
+- Added `'GetTensorElementType': 60` to the slot guard golden table in
+  `test/ort_slot_guard_test.dart` (total bound slots: 23).
+- Fixed three stale "slot 35" references in `session.dart` to "slot 60";
+  wired `GetTensorElementType(ttasi)` into the output-extraction loop before
+  `ReleaseTensorTypeAndShapeInfo`; extended `_copyTensorData` to accept the
+  raw type code as a third argument and branch on all five types (float32,
+  uint8, int32, int64, float64) via `OnnxElementType.fromOnnxTypeCode`.
+- Added `asUint8()`, `asInt32()`, and `asFloat64()` typed accessors to
+  `OnnxTensor` in `tensor.dart`, matching the existing `asFloat32()`/`asInt64()`
+  pattern.
+- Extended `tool/generate_test_fixture.dart` to parameterise `_typeProto`'s
+  `elemType` and emit all five type-specific identity fixtures; committed
+  `identity_float32.onnx`, `identity_uint8.onnx`, `identity_int32.onnx`,
+  `identity_int64.onnx`, and `identity_float64.onnx` (each 98 bytes) to
+  `test/fixtures/`.
+- Added unit tests for the three new accessors in `test/tensor_test.dart`
+  (success path, `StateError` path, and message-content assertion for each).
+- Added integration test group `'OnnxSession — non-float32 output'` to
+  `test/onnx_session_test.dart` covering uint8, int32, int64, and float64
+  identity models; all four tests use the existing skip-if-no-ORT guard and
+  each verifies `elementType`, `shape`, and the typed accessor output.
+- Updated `docs/spec/README.md`: removed the float32-only constraint paragraph
+  from §5.2 and replaced it with the correct full-type description; added the
+  three missing typed accessors to the code block in §5.3; deleted the
+  "Output element type always float32" limitation section from §8.
+- Marked Goal 3 as 100% in `docs/roadmap/v0.md`.
+- `make pre_commit` passed (format, analyze, license_check, test — 83 tests,
+  11 skipped as expected for ORT-gated session tests on macOS JIT).
+- **Deviation from plan**: the copy-branch coverage step was implemented via
+  the four additional integration fixtures and tests rather than "direct unit
+  tests against the copy logic", because `_copyTensorData` is private and
+  cannot be invoked from outside `session.dart`. The integration-test approach
+  is cleaner, consistent with the existing float32 session test, and fully
+  covers all five branches when ORT is available on CI.
+- **PR evidence requirement (CLAUDE.md)**: this plan adds a new slot binding
+  (slot 60). A passing `make macos_test` or `make linux_test` run must be
+  included in the PR description before merge.

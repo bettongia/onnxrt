@@ -179,6 +179,26 @@ final class OnnxTensor {
     return data as Float32List;
   }
 
+  /// Returns this tensor's data as a [Uint8List].
+  ///
+  /// Throws [StateError] if [elementType] is not [OnnxElementType.uint8].
+  Uint8List asUint8() {
+    if (elementType != OnnxElementType.uint8) {
+      throw StateError('Cannot view $elementType tensor as Uint8List.');
+    }
+    return data as Uint8List;
+  }
+
+  /// Returns this tensor's data as an [Int32List].
+  ///
+  /// Throws [StateError] if [elementType] is not [OnnxElementType.int32].
+  Int32List asInt32() {
+    if (elementType != OnnxElementType.int32) {
+      throw StateError('Cannot view $elementType tensor as Int32List.');
+    }
+    return data as Int32List;
+  }
+
   /// Returns this tensor's data as an [Int64List].
   ///
   /// Throws [StateError] if [elementType] is not [OnnxElementType.int64].
@@ -187,6 +207,16 @@ final class OnnxTensor {
       throw StateError('Cannot view $elementType tensor as Int64List.');
     }
     return data as Int64List;
+  }
+
+  /// Returns this tensor's data as a [Float64List].
+  ///
+  /// Throws [StateError] if [elementType] is not [OnnxElementType.float64].
+  Float64List asFloat64() {
+    if (elementType != OnnxElementType.float64) {
+      throw StateError('Cannot view $elementType tensor as Float64List.');
+    }
+    return data as Float64List;
   }
 
   @override

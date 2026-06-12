@@ -62,6 +62,7 @@ const Map<String, int> _expectedSlotsV22 = {
   'SetInterOpNumThreads': 25,
   'CreateTensorWithDataAsOrtValue': 49,
   'GetTensorMutableData': 51,
+  'GetTensorElementType': 60,
   'GetDimensionsCount': 61,
   'GetDimensions': 62,
   'GetTensorTypeAndShape': 65,

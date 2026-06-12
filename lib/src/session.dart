@@ -378,6 +378,13 @@ final class OnnxSession {
         _api,
         99,
       ).asFunction<ReleaseTensorTypeAndShapeInfoDart>();
+      // GetTensorElementType (slot 60): reads the ONNXTensorElementDataType
+      // from an OrtTensorTypeAndShapeInfo handle. Must be called before
+      // ReleaseTensorTypeAndShapeInfo while the handle is still live.
+      final getElementType = ortSlotPtr<GetTensorElementTypeC>(
+        _api,
+        60,
+      ).asFunction<GetTensorElementTypeDart>();
 
       final inputNames = inputs.keys.toList();
       final inputTensors = inputs.values.toList();
@@ -440,6 +447,12 @@ final class OnnxSession {
         check(getDims(ttasi, dimBuf, dimCount));
         final shape = List<int>.generate(dimCount, (d) => dimBuf[d]);
 
+        // GetTensorElementType (slot 60): read the element type before
+        // releasing the type-shape handle (ttasi must still be live).
+        final typeCodePtr = arena<Int32>();
+        check(getElementType(ttasi, typeCodePtr));
+        final onnxTypeCode = typeCodePtr.value;
+
         // Release the type-shape info handle.
         releaseTTASI(ttasi);
 
@@ -450,7 +463,11 @@ final class OnnxSession {
         // Copy data from native memory into a Dart TypedData.
         // We must copy (not view) because the OrtValue will be released.
         final elementCount = shape.isEmpty ? 1 : shape.fold(1, (a, b) => a * b);
-        final tensorData = _copyTensorData(rawPtr.value, elementCount);
+        final tensorData = _copyTensorData(
+          rawPtr.value,
+          elementCount,
+          onnxTypeCode,
+        );
 
         results.add(
           OnnxTensor(
@@ -542,34 +559,69 @@ final class OnnxSession {
   /// Reads [elementCount] elements from [rawPtr] and returns a
   /// `(OnnxElementType, TypedData)` pair.
   ///
-  /// The element type is currently inferred from the output tensor's type
-  /// code as reported by [GetTensorTypeAndShapeInfo]. For v1, we rely on
-  /// the caller knowing the expected output type — the raw pointer type is
-  /// not inspected here (the ORT API does not expose element type directly
-  /// from GetTensorMutableData; use GetTensorElementType (slot 35) if needed
-  /// in a future version).
+  /// [onnxTypeCode] is the raw `ONNXTensorElementDataType` value obtained from
+  /// `GetTensorElementType` (slot 60) on the output tensor's
+  /// `OrtTensorTypeAndShapeInfo`. The code is resolved to an [OnnxElementType]
+  /// via [OnnxElementType.fromOnnxTypeCode], then the raw bytes are copied into
+  /// the appropriate [TypedData] subtype.
   ///
   /// The data is **copied** from native memory into a Dart [TypedData] buffer
   /// before the OrtValue handle is released.
   ///
-  /// For v1, output tensors default to float32 (the most common output for
-  /// embedding models). A future version can read the element type from
-  /// slot 35 (GetTensorElementType) and select the appropriate TypedData.
+  /// Throws [ArgumentError] (propagated from [OnnxElementType.fromOnnxTypeCode])
+  /// if [onnxTypeCode] is not one of the five supported element types.
   (OnnxElementType, TypedData) _copyTensorData(
     Pointer<Void> rawPtr,
     int elementCount,
+    int onnxTypeCode,
   ) {
-    // Default to float32 — most ONNX models produce float32 outputs.
-    // The generic API exposes shape information; element type introspection
-    // via slot 35 (GetTensorElementType) is a v2 enhancement.
-    //
-    // The returned Float32List is a copy of the native data so the pointer
-    // can be safely released after this call.
-    final floatPtr = rawPtr.cast<Float>();
-    final result = Float32List(elementCount);
-    for (var i = 0; i < elementCount; i++) {
-      result[i] = floatPtr[i];
+    // Resolve the raw ORT type code to the Dart enum. fromOnnxTypeCode throws
+    // ArgumentError for unsupported codes — run() propagates this to the caller.
+    final elementType = OnnxElementType.fromOnnxTypeCode(onnxTypeCode);
+
+    // Copy raw native memory into the appropriate Dart TypedData subtype.
+    // Element-wise copy (rawPtr.cast<T>()[i]) is safe for all five types and
+    // matches the endianness of the native ORT output buffer (host byte order).
+    switch (elementType) {
+      case OnnxElementType.float32:
+        final src = rawPtr.cast<Float>();
+        final result = Float32List(elementCount);
+        for (var i = 0; i < elementCount; i++) {
+          result[i] = src[i];
+        }
+        return (OnnxElementType.float32, result);
+
+      case OnnxElementType.uint8:
+        final src = rawPtr.cast<Uint8>();
+        final result = Uint8List(elementCount);
+        for (var i = 0; i < elementCount; i++) {
+          result[i] = src[i];
+        }
+        return (OnnxElementType.uint8, result);
+
+      case OnnxElementType.int32:
+        final src = rawPtr.cast<Int32>();
+        final result = Int32List(elementCount);
+        for (var i = 0; i < elementCount; i++) {
+          result[i] = src[i];
+        }
+        return (OnnxElementType.int32, result);
+
+      case OnnxElementType.int64:
+        final src = rawPtr.cast<Int64>();
+        final result = Int64List(elementCount);
+        for (var i = 0; i < elementCount; i++) {
+          result[i] = src[i];
+        }
+        return (OnnxElementType.int64, result);
+
+      case OnnxElementType.float64:
+        final src = rawPtr.cast<Double>();
+        final result = Float64List(elementCount);
+        for (var i = 0; i < elementCount; i++) {
+          result[i] = src[i];
+        }
+        return (OnnxElementType.float64, result);
     }
-    return (OnnxElementType.float32, result);
   }
 }

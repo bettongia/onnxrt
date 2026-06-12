@@ -12,17 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Generates `test/fixtures/identity_float32.onnx` — a minimal ONNX model
-/// that passes a float32[1,4] input directly to a float32[1,4] output
-/// (identity graph with no actual ops: just an input → output mapping via
-/// a single Identity node).
+/// Generates test fixture ONNX models for `betto_onnxrt` unit and integration
+/// tests.
+///
+/// By default generates:
+///   - `test/fixtures/identity_float32.onnx`  (elem_type=1, float32)
+///   - `test/fixtures/identity_int64.onnx`    (elem_type=7, int64)
 ///
 /// Run with:
 ///   dart run tool/generate_test_fixture.dart
 ///
-/// The generated file is committed to the repository so that the OnnxSession
-/// tests in `test/onnx_session_test.dart` can use it without a network
-/// download. It is intentionally tiny (< 1 KB) and carries no weights.
+/// Each generated file is committed to the repository so that the OnnxSession
+/// tests in `test/onnx_session_test.dart` can use them without a network
+/// download. They are intentionally tiny (< 1 KB each) and carry no weights.
+///
+/// ## Extending
+///
+/// To emit a fixture for a new element type, call `_emitModel` with the
+/// appropriate `elemType` code (ONNX `ONNXTensorElementDataType` integer):
+///   1 = float32, 2 = uint8, 6 = int32, 7 = int64, 11 = float64
 ///
 /// ONNX protobuf wire format reference (proto3):
 ///   ModelProto   field 1  = ir_version (int64)
@@ -100,24 +108,32 @@ List<int> _tensorShape(List<int> dims) {
   return dimMessages;
 }
 
-/// Builds a TypeProto for a fixed-shape float32 tensor (elem_type = 1).
+/// Builds a TypeProto for a fixed-shape tensor with the given [elemType] code.
+///
+/// [elemType] is an `ONNXTensorElementDataType` integer:
+///   1 = float32, 2 = uint8, 6 = int32, 7 = int64, 11 = float64.
 ///
 /// TypeProto:        field 1 = tensor_type (TypeProto.Tensor, message)
 /// TypeProto.Tensor: field 1 = elem_type (int32), field 2 = shape
-List<int> _typeProto(List<int> shape) {
+List<int> _typeProto(List<int> shape, {int elemType = 1}) {
   final shapeBytes = _tensorShape(shape);
   final tensorType = [
-    ..._varintField(1, 1), // elem_type = 1 (FLOAT)
+    ..._varintField(1, elemType), // elem_type
     ..._lenField(2, shapeBytes), // shape
   ];
   return _lenField(1, tensorType); // TypeProto.tensor_type
 }
 
-/// Builds a ValueInfoProto with a fixed-shape float32 type.
+/// Builds a ValueInfoProto with a fixed-shape tensor of the given [elemType].
+///
+/// [elemType] is an `ONNXTensorElementDataType` integer (default 1 = float32).
 ///
 /// ValueInfoProto: field 1 = name (string), field 2 = type (TypeProto)
-List<int> _valueInfo(String name, List<int> shape) {
-  return [..._stringField(1, name), ..._lenField(2, _typeProto(shape))];
+List<int> _valueInfo(String name, List<int> shape, {int elemType = 1}) {
+  return [
+    ..._stringField(1, name),
+    ..._lenField(2, _typeProto(shape, elemType: elemType)),
+  ];
 }
 
 /// Builds a NodeProto for the Identity op.
@@ -146,15 +162,18 @@ List<int> _opsetImport(int version) {
 ///
 /// GraphProto: field 1 = node, field 2 = name, field 11 = input,
 ///             field 12 = output
+///
+/// [elemType] is an `ONNXTensorElementDataType` integer (default 1 = float32).
 List<int> _graphProto({
   required String name,
   required String inputName,
   required String outputName,
   required List<int> shape,
+  int elemType = 1,
 }) {
   final node = _identityNode(inputName, outputName);
-  final input = _valueInfo(inputName, shape);
-  final output = _valueInfo(outputName, shape);
+  final input = _valueInfo(inputName, shape, elemType: elemType);
+  final output = _valueInfo(outputName, shape, elemType: elemType);
 
   return [
     ..._lenField(1, node), // node
@@ -183,28 +202,77 @@ List<int> _modelProto({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-void main() {
-  // Build a minimal identity graph:
-  //   input  'input'  — float32[1, 4]
-  //   output 'output' — float32[1, 4]
-  //   node   Identity(input -> output)
-  //
+/// Emits an identity ONNX model to [outputPath].
+///
+/// Generates a single-op identity graph with input and output shaped [shape]
+/// and element type [elemType] (`ONNXTensorElementDataType` integer).
+/// The model is committed to the repository as a test fixture.
+void _emitModel({
+  required String outputPath,
+  required List<int> shape,
+  required int elemType,
+  required String description,
+}) {
   // ir_version = 8 (ONNX IR version for ORT 1.x)
   // opset version = 17 (safe minimum for Identity op)
   final graph = _graphProto(
     name: 'identity',
     inputName: 'input',
     outputName: 'output',
-    shape: [1, 4],
+    shape: shape,
+    elemType: elemType,
   );
 
   final model = _modelProto(irVersion: 8, opsetVersion: 17, graph: graph);
-
-  final outputPath = 'test/fixtures/identity_float32.onnx';
   File(outputPath).writeAsBytesSync(Uint8List.fromList(model));
 
   final size = model.length;
-  print('Generated $outputPath ($size bytes).');
-  print('This fixture is a minimal ONNX identity model (float32[1,4]).');
-  print('Commit it alongside test/onnx_session_test.dart.');
+  print('Generated $outputPath ($size bytes) — $description.');
+  print('Commit it alongside the test files.');
+}
+
+void main() {
+  // float32[1,4] identity fixture — used by the existing float32 session tests.
+  _emitModel(
+    outputPath: 'test/fixtures/identity_float32.onnx',
+    shape: [1, 4],
+    elemType: 1, // ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
+    description: 'minimal ONNX identity model (float32[1,4])',
+  );
+
+  // uint8[1,4] identity fixture — exercises the uint8 copy branch in session.dart.
+  // elem_type 2 = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8.
+  _emitModel(
+    outputPath: 'test/fixtures/identity_uint8.onnx',
+    shape: [1, 4],
+    elemType: 2, // ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8
+    description: 'minimal ONNX identity model (uint8[1,4])',
+  );
+
+  // int32[1,4] identity fixture — exercises the int32 copy branch in session.dart.
+  // elem_type 6 = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32.
+  _emitModel(
+    outputPath: 'test/fixtures/identity_int32.onnx',
+    shape: [1, 4],
+    elemType: 6, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32
+    description: 'minimal ONNX identity model (int32[1,4])',
+  );
+
+  // int64[1,4] identity fixture — exercises the int64 copy branch in session.dart.
+  // elem_type 7 = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64.
+  _emitModel(
+    outputPath: 'test/fixtures/identity_int64.onnx',
+    shape: [1, 4],
+    elemType: 7, // ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64
+    description: 'minimal ONNX identity model (int64[1,4])',
+  );
+
+  // float64[1,4] identity fixture — exercises the float64 copy branch in session.dart.
+  // elem_type 11 = ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE.
+  _emitModel(
+    outputPath: 'test/fixtures/identity_float64.onnx',
+    shape: [1, 4],
+    elemType: 11, // ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE
+    description: 'minimal ONNX identity model (float64[1,4])',
+  );
 }
