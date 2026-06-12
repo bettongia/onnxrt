@@ -2,7 +2,7 @@
 
 **Status**: Complete
 
-**PR link**: _(pending)_
+**PR link**: https://github.com/bettongia/onnxrt/pull/1
 
 ## Problem statement
 
