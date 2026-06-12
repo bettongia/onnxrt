@@ -10,13 +10,11 @@ COPY --from=addlicense-builder /go/bin/addlicense /usr/local/bin/addlicense
 RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     lcov \
-    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/sh runner
 
 ENV HOME=/home/runner
-ENV CHROME_EXECUTABLE=chromium
 
 # dart pub global activate installs binaries here (e.g. coverage's format_coverage)
 ENV PATH="/home/runner/.pub-cache/bin:${PATH}"
