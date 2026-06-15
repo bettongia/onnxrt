@@ -25,6 +25,7 @@
 6. [iOS — SPM plugin shim](#6-ios--spm-plugin-shim)
 7. [Thread safety](#7-thread-safety)
 8. [Known limitations and future work](#8-known-limitations-and-future-work)
+9. [Upgrading ONNX Runtime](#9-upgrading-onnx-runtime)
 
 ---
 
@@ -619,3 +620,24 @@ The written manual smoke checklist at `docs/manual_checks.md` covers this gap
 with the detail needed for a trustworthy non-automated check: Flutter
 channel/version, load-verification steps, failure signatures, and where to
 record evidence in the PR description.
+
+---
+
+## 9. Upgrading ONNX Runtime
+
+Adopting a new ORT release requires coordinated changes across
+`VERSION_ONNX`, `version_onnx.json`, `lib/src/generated/versions.g.dart`,
+`lib/src/ort_api.dart`, `packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift`,
+and the vtable-slot golden table in `test/ort_slot_guard_test.dart`.
+
+The process is automated in part by `tool/update_ort_version.dart`, which
+downloads all binary artifacts, computes their SHA-256 digests, probes for
+Windows patch releases, looks up the correct iOS SPM tag, and writes a
+ready-to-merge `version_onnx.json`. Manual steps — vtable-slot verification
+against the new `onnxruntime_c_api.h` and the integration test matrix — cannot
+be automated.
+
+**Full upgrade procedure**: `docs/upgrading_onnxrt.md`
+
+**Plan**: `docs/plans/plan_ort_version_upgrade.md` (tracked under Goal #6 of the v0
+roadmap).

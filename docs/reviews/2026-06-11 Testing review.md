@@ -1,11 +1,15 @@
 # betto_onnxrt — Testing & Release Readiness Review
 
-**Date:** 2026-06-11 **Reviewer:** Release Ninja (QA / release engineering)
+**Date:** 2026-06-11
+
+**Reviewer:** Release Ninja (QA / release engineering)
+
 **Scope:** Unit/integration test suite, CI/CD pipeline, cross-platform coverage,
-and FFI core risk for the `betto_onnxrt` pure-Dart library. **Evidence:**
-`make test`, `make container_test` (with coverage), `make macos_test`,
-`make ios_test`, `make android_test` — raw logs captured under
-`reviews/2026-06-11 Testing review logs/`.
+and FFI core risk for the `betto_onnxrt` pure-Dart library.
+
+**Evidence:** `make test`, `make container_test` (with coverage),
+`make macos_test`, `make ios_test`, `make android_test` — raw logs captured
+under `reviews/2026-06-11 Testing review logs/`.
 
 ---
 
