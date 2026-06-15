@@ -13,3 +13,4 @@ analyzer:
     - lib/src/generated/**
     - integration_test_app/**
     - packages/**
+    - example/**

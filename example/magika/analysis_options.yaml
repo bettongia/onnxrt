@@ -1,0 +1,6 @@
+# This file configures the static analysis results for your project (errors,
+# warnings, and lints).
+#
+# Inherits the recommended set of lints from `package:lints`.
+
+include: package:lints/recommended.yaml

@@ -188,15 +188,66 @@ final class OnnxRuntime {
     // known relative location. We open it via the asset name registered by
     // the hook.
     //
-    // macOS: the Flutter build system wraps DynamicLoadingBundled dylibs in
-    // versioned .framework bundles. The framework name is derived from the
-    // staged filename (libonnxruntime.{ver}.dylib) by stripping 'lib', the
-    // '.dylib' suffix, and all dots: libonnxruntime.1.22.0.dylib →
-    // onnxruntime1220.framework/onnxruntime1220. macOS dlopen expands rpath
-    // entries for relative paths, so the @executable_path/../Frameworks rpath
-    // baked into the app binary finds Contents/Frameworks/onnxruntime1220.framework/.
+    // macOS: two loading strategies are tried in order, covering both the
+    // Flutter and plain-Dart-CLI cases.
+    //
+    // 1. Flutter / AOT app bundle: the Flutter build system wraps
+    //    DynamicLoadingBundled dylibs in versioned .framework bundles. The
+    //    framework name is derived from the staged filename by stripping 'lib',
+    //    the '.dylib' suffix, and all dots:
+    //      libonnxruntime.1.22.0.dylib → onnxruntime1220.framework/onnxruntime1220
+    //    macOS dlopen expands rpath entries for relative paths, so the
+    //    @executable_path/../Frameworks rpath baked into the app binary finds
+    //    Contents/Frameworks/onnxruntime1220.framework/.
+    //
+    // 2. Plain Dart CLI (`dart build cli` / `dart run`): the build hook places
+    //    the dylib alongside other native assets. For `dart build cli` the
+    //    bundle layout is `bundle/bin/<exe>` + `bundle/lib/<dylib>`, so we try
+    //    the absolute path derived from the executable location. For `dart run`
+    //    (JIT) the dylib lives in the hook cache at
+    //    `.dart_tool/betto_onnxrt/{version}/`. We probe the hook-cache path
+    //    using the resolved executable's directory tree.
     if (Platform.isMacOS) {
       final fw = 'onnxruntime${ortVersion.replaceAll('.', '')}';
+      final dylibName = 'libonnxruntime.$ortVersion.dylib';
+
+      // Strategy 1: Flutter framework bundle (most common for Flutter apps).
+      try {
+        return DynamicLibrary.open('$fw.framework/$fw');
+      } catch (_) {
+        // Fall through to strategy 2.
+      }
+
+      // Strategy 2: plain dylib — probe multiple candidate locations.
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final candidates = <String>[
+        // dart build cli: dylib is in bundle/lib/ next to bundle/bin/<exe>.
+        // The compiled binary lives at bundle/bin/<exe>; the dylib is at
+        // bundle/lib/<dylib>. @loader_path/../../.. resolves to bundle/, so
+        // relative opens do not work here — use an absolute path instead.
+        '$exeDir/../lib/$dylibName',
+        // dart run (JIT): Dart places native assets from hook output into
+        // .dart_tool/lib/ inside the CWD's package root before running.
+        // When `dart run` is invoked from example/magika/, assets land at
+        // example/magika/.dart_tool/lib/<dylib>.
+        '${Directory.current.path}/.dart_tool/lib/$dylibName',
+        // Alternative JIT path: hook cache in betto_onnxrt's own .dart_tool.
+        '${Directory.current.path}/../../.dart_tool/betto_onnxrt/$ortVersion/$dylibName',
+      ];
+
+      for (final path in candidates) {
+        final resolved = File(path);
+        if (resolved.existsSync()) {
+          try {
+            return DynamicLibrary.open(resolved.absolute.path);
+          } catch (_) {
+            // Try next candidate.
+          }
+        }
+      }
+
+      // All strategies failed — open the framework path to surface the
+      // original diagnostic error message.
       return DynamicLibrary.open('$fw.framework/$fw');
     }
     if (Platform.isLinux) return DynamicLibrary.open('libonnxruntime.so');
