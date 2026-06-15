@@ -87,8 +87,13 @@ If the file cannot be read, the output is:
   first 512 bytes, middle 512 bytes, and last 512 bytes of the file, but the
   full file is loaded via `File.readAsBytesSync()`. May be slow or fail on very
   large files (> ~100 MB).
-- **`output` is always equal to `dl`** — rule-based overrides (e.g. tiny files
-  declared `unknown`) are not implemented in v1.
+- **`output` is always equal to `dl`** — in the full Magika reference
+  implementation (Python/Rust), `output` is a post-processed label that may
+  differ from `dl` when rule-based overrides apply. For example, a file that is
+  too small for the model to classify reliably would have `dl` set to whatever
+  the neural network predicted, but `output` overridden to `unknown`. In this
+  v1 implementation those overrides are not applied, so `output` is always a
+  copy of `dl`.
 
 ## Developer workflow notes
 
