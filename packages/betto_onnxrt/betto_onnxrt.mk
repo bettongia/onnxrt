@@ -88,7 +88,7 @@ cicd_linux:
 	  genhtml coverage/lcov.info -o site/coverage
 .PHONY: cicd_linux
 
-cicd_macos: prepare_flutter test doc macos_test
+cicd_macos: prepare_flutter prepare_ios analyze_ios test doc macos_test
 .PHONY: cicd_macos
 
 cicd_windows: prepare_dart test

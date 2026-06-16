@@ -43,3 +43,7 @@ license_add_ios:
 	  --ignore="build/**" \
 	  $(BETTO_IOS)
 .PHONY: license_add_ios
+
+analyze_ios:
+	cd $(BETTO_IOS) && flutter analyze
+.PHONY: analyze_ios

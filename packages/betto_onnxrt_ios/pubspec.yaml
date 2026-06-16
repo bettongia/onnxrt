@@ -1,10 +1,10 @@
 name: betto_onnxrt_ios
 description: >
-  Flutter plugin shim that links ORT via SPM on iOS for betto_onnxrt.
-  Add this plugin to any Flutter app that uses betto_onnxrt on iOS; no
-  CocoaPods or Podfile changes are needed. The plugin declares an SPM
-  dependency on microsoft/onnxruntime-swift-package-manager (onnxruntime),
-  which causes Xcode to statically link ORT into the host app binary.
+  Flutter plugin shim that links ORT via SPM on iOS for betto_onnxrt. Add this
+  plugin to any Flutter app that uses betto_onnxrt on iOS; no CocoaPods or
+  Podfile changes are needed. The plugin declares an SPM dependency on
+  microsoft/onnxruntime-swift-package-manager (onnxruntime), which causes Xcode
+  to statically link ORT into the host app binary.
 version: 0.1.0-dev.1
 repository: https://github.com/bettongia/onnxrt
 homepage: https://github.com/bettongia/onnxrt
@@ -21,6 +21,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
 flutter:
   plugin:
     platforms:

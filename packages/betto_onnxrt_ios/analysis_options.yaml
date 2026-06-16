@@ -1,5 +1,1 @@
-# This file configures the static analysis results for betto_onnxrt_ios.
-#
-# Enables the 'recommended' set of lints from `package:lints`.
-
-include: package:lints/recommended.yaml
+include: package:flutter_lints/flutter.yaml

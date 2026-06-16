@@ -24,7 +24,7 @@ export EMULATOR_ANDROID_ABI ?= arm64-v8a
 
 # BEGIN: Cross-package targets
 
-default: clean prepare license_check format analyze test coverage doc_site
+default: clean prepare license_check format analyze analyze_ios test coverage doc_site
 .PHONY: default
 
 # CI top-level alias — delegates to the full default gate.
@@ -36,7 +36,7 @@ clean: clean_dart clean_ios
 	cd $(BETTO_ITA) && flutter clean
 .PHONY: clean
 
-pre_commit: format_check analyze license_check test check_ios_version
+pre_commit: format_check analyze analyze_ios license_check test check_ios_version
 .PHONY: pre_commit
 
 # Assert that the SPM exact-version pin in packages/betto_onnxrt_ios/ios/Package.swift
