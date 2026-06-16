@@ -35,7 +35,7 @@ coverage/
 scratch.md
 api-docs/
 site/
-.claude/settings.json
+.claude
 
 logs/*
 
@@ -50,3 +50,5 @@ downloads/*/*
 
 # 4. Re-include the README files
 !downloads/*/README.md
+
+.DS_Store

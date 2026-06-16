@@ -34,6 +34,7 @@ cicd: default
 # clean: full clean including Flutter build outputs from both packages.
 clean: clean_dart clean_ios
 	cd $(BETTO_ITA) && flutter clean
+	rm -rf site
 .PHONY: clean
 
 pre_commit: format_check analyze analyze_ios license_check test check_ios_version
