@@ -26,10 +26,8 @@
 ///
 /// ```yaml
 /// dependencies:
-///   betto_onnxrt_ios:
-///     git:
-///       url: git@github.com:bettongia/onnxrt.git
-///       path: packages/betto_onnxrt_ios
+///   betto_onnxrt: ^0.1.0-dev.1
+///   betto_onnxrt_ios: ^0.1.0-dev.1
 /// ```
 ///
 /// No `Podfile` changes are required. Flutter picks up the SPM dependency

@@ -5,8 +5,16 @@ description: >
   CocoaPods or Podfile changes are needed. The plugin declares an SPM
   dependency on microsoft/onnxruntime-swift-package-manager (onnxruntime),
   which causes Xcode to statically link ORT into the host app binary.
-version: 0.1.0
+version: 0.1.0-dev.1
 repository: https://github.com/bettongia/onnxrt
+homepage: https://github.com/bettongia/onnxrt
+issue_tracker: https://github.com/bettongia/onnxrt/issues
+topics:
+  - onnx
+  - onnxruntime
+  - machine-learning
+  - ios
+  - spm
 environment:
   sdk: ^3.12.0
   flutter: ">=3.27.0"

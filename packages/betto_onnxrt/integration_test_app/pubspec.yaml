@@ -15,7 +15,7 @@ dependencies:
   betto_onnxrt:
     path: ../
   betto_onnxrt_ios:
-    path: ../packages/betto_onnxrt_ios
+    path: ../../betto_onnxrt_ios
 
 dev_dependencies:
   flutter_test:
