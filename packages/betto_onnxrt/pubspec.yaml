@@ -11,6 +11,8 @@ topics:
   - onnx
   - machine-learning
   - native-assets
+  - ffi
+  - inference
 
 environment:
   sdk: ^3.12.0

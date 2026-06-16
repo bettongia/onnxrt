@@ -22,8 +22,7 @@
 /// To run locally after the hook has produced the binary:
 ///   cd /path/to/onnxrt && dart test test/onnx_session_test.dart
 ///
-/// See `docs/spec/28_release_checklist.md` RC-15 for the full manual
-/// verification procedure.
+/// See `docs/spec/README.md` §8 for the full manual verification procedure.
 library;
 
 import 'dart:convert';
@@ -148,7 +147,7 @@ String _windowsOrtDllPath(String packageRoot) {
 const _skipMessage =
     'ORT binary not staged — run `dart build` (or the betto_onnxrt hook) '
     'first. See test/onnx_session_test.dart file-level doc and '
-    'docs/spec/28_release_checklist.md RC-15.';
+    'docs/spec/README.md §8.';
 
 // ── Tiny ONNX fixture path ─────────────────────────────────────────────────---
 

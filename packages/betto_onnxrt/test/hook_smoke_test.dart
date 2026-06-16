@@ -30,7 +30,7 @@
 ///      case the hook-did-run check is still confirmed via `native_assets.yaml`.
 ///
 /// For a full end-to-end hook verification including an actual binary
-/// download, see `docs/spec/28_release_checklist.md` RC-15.
+/// download, see `docs/spec/README.md` §8.
 library;
 
 import 'dart:io';

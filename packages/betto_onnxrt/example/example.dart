@@ -83,12 +83,11 @@ final _myModel = ModelSpec(
       url: Uri(
         scheme: 'https',
         host: 'huggingface.co',
-        path:
-            '/BAAI/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx',
+        path: '/BAAI/bge-small-en-v1.5/resolve/main/onnx/model.onnx',
       ),
       sha256:
-          'e4d6d7c3e1b7a5e2f4c3a1b9e8d7c6f5'
-          'a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9', // placeholder
+          '828e1496d7fabb79cfa4dcd84fa38625'
+          'c0d3d21da474a00f08db0f559940cf35',
     ),
   },
   meta: {'dimensions': 384},

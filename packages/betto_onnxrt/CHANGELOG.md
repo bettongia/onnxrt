@@ -10,7 +10,7 @@ Initial development release.
 - `OnnxRuntime` — opens the staged ORT library and initialises the `OrtApi`
   vtable.
 - `OnnxSession` — generalised FFI inference session supporting arbitrary named
-  inputs and outputs; exposes output shape via vtable slots 31–33.
+  inputs and outputs; exposes output tensor shape and element type.
 - `OnnxTensor` — typed multi-dimensional array with named factories for
   `float32`, `float64`, `int32`, `int64`, and `uint8` element types.
 - `SessionOptions` — thread-pool sizing for intra-op and inter-op parallelism.
