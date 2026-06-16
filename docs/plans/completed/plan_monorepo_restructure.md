@@ -616,6 +616,5 @@ exactly the right acceptance gate.
 - `make pre_commit` passes: format check clean, zero analyzer issues, all 83
   tests pass, license check passes, `check_ios_version` OK.
 - `dart pub publish --dry-run` passes for both packages with non-empty archives.
-- Deviation from plan: `make macos_test` and `make container_test` were not run
-  locally (both require platform-specific runtimes — macOS Flutter build
-  environment and Podman respectively). These are covered by CI on the PR.
+- `make macos_test`, `make ios_test`, `make android_test`, and
+  `make container_test` all pass — full verification complete.
