@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := default
 
+include site.mk
+
 export EMULATOR_IOS ?= ios-emulator
 export EMULATOR_IOS_DEVICE ?= iPhone\ 17
 export EMULATOR_IOS_RUNTIME ?= iOS26.5
@@ -14,7 +16,7 @@ export EMULATOR_ANDROID_ABI ?= arm64-v8a
 
 # BEGIN: Primary tasks
 
-default: clean prepare license_check format analyze test coverage doc
+default: clean prepare license_check format analyze test coverage doc_site
 .PHONY: default
 
 # CI targets — invoked by GitHub Actions, not intended for direct local use.
@@ -25,6 +27,8 @@ default: clean prepare license_check format analyze test coverage doc
 #
 cicd: default
 .PHONY: cicd
+
+
 
 # cicd_linux is self-contained: downloads the ORT binary, creates the
 # unversioned symlink that dlopen('libonnxruntime.so') needs in JIT mode, then
@@ -48,7 +52,6 @@ cicd_linux:
 	  rm -rf site/coverage && \
 	  mkdir -p site/coverage && \
 	  genhtml coverage/lcov.info -o site/coverage
-	dart doc
 .PHONY: cicd_linux
 
 cicd_macos: prepare_flutter test doc macos_test
@@ -209,33 +212,7 @@ coverage:
 
 .PHONY: coverage
 
-# BEGIN: Documentation site tasks
-site/:
-	mkdir -p site
 
-site: styles site/index.html site/spec.html site/roadmap.html site/api/index.html coverage | site/
-.PHONY: site
-
-styles: site/styles/styles.css
-.PHONY: styles
-
-site/index.html:  docs/index.md README.md docs/.pandoc docs/template/header.html | site/
-	pandoc --defaults="docs/.pandoc" docs/index.md README.md -o "site/index.html";
-
-site/spec.html:  docs/spec/*.md docs/spec/.pandoc docs/template/header.html | site/
-	pandoc --defaults="docs/spec/.pandoc" --mathml docs/spec/*.md -o "site/spec.html";
-
-site/roadmap.html: docs/roadmap/*.md docs/.pandoc docs/template/header.html | site/
-	pandoc --defaults="docs/.pandoc" docs/roadmap/v*.md -o "site/roadmap.html";
-
-site/styles/styles.css: docs/styles/styles.css | site/
-	mkdir -p site/styles/
-	cp docs/styles/styles.css site/styles/styles.css
-
-site/api/index.html:
-	dart doc -o site/api/index.html
-
-# END: Documentation site tasks
 
 # prepare_dart: Dart-only setup — safe on CI runners that lack Flutter.
 # prepare_flutter: Full setup including Flutter project pub-gets.
