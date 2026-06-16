@@ -35,7 +35,7 @@
 ONNX Runtime inference to Dart and Flutter applications across macOS, Linux,
 Windows, Android, and iOS. It has three concerns:
 
-1. **Binary delivery** — a native-assets build hook (`hook/build.dart`)
+1. **Binary delivery** — a native-assets build hook (`packages/betto_onnxrt/hook/build.dart`)
    downloads and verifies the correct prebuilt ORT binary for the target
    platform at compile time. Consumers never manage binaries manually.
 
@@ -51,9 +51,9 @@ Windows, Android, and iOS. It has three concerns:
 
 `betto_onnxrt` bundles **ONNX Runtime v1.22.0**, sourced from the
 [ONNX Runtime project](https://onnxruntime.ai). Bumping the bundled version
-requires updating `VERSION_ONNX` at the repo root, regenerating
-`lib/src/generated/versions.g.dart`, and updating the SHA-256 manifest in
-`hook/build.dart`.
+requires updating `packages/betto_onnxrt/VERSION_ONNX`, regenerating
+`packages/betto_onnxrt/lib/src/generated/versions.g.dart`, and updating the
+SHA-256 manifest in `packages/betto_onnxrt/hook/build.dart`.
 
 The primary consumer within the Bettongia workspace is `kmdb_inferencing`,
 which uses `betto_onnxrt` to run BGE embedding models for semantic search.
@@ -105,14 +105,15 @@ ORT XCFramework automatically. See §6 for full details.
 
 ## 4. Binary delivery — native-assets build hook
 
-`hook/build.dart` runs automatically during every `dart build` or
-`flutter build`. It has no effect on the consumer beyond binary availability.
+`packages/betto_onnxrt/hook/build.dart` runs automatically during every
+`dart build` or `flutter build`. It has no effect on the consumer beyond
+binary availability.
 
 ### What the hook does
 
 1. Determines the target platform and ABI from the build environment.
 2. Checks whether a valid cached binary already exists at
-   `.dart_tool/betto_onnxrt/{ort_version}/`. If so, skips the download.
+   `packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/`. If so, skips the download.
 3. Downloads the correct prebuilt ORT binary:
    - **Desktop** (macOS, Linux, Windows): GitHub Releases.
    - **Android**: Maven Central (the official `com.microsoft.onnxruntime:onnxruntime-android` AAR).
@@ -135,8 +136,9 @@ iOS support is handled entirely by the SPM plugin shim (see §6).
 
 ### Cache location
 
-`.dart_tool/betto_onnxrt/{ort_version}/` — version-scoped so bumping
-`VERSION_ONNX` forces a re-download.
+`packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/` —
+version-scoped so bumping `packages/betto_onnxrt/VERSION_ONNX` forces a
+re-download.
 
 ---
 
@@ -626,11 +628,15 @@ record evidence in the PR description.
 ## 9. Upgrading ONNX Runtime
 
 Adopting a new ORT release requires coordinated changes across
-`VERSION_ONNX`, `version_onnx.json`, `lib/src/generated/versions.g.dart`,
-`lib/src/ort_api.dart`, `packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift`,
-and the vtable-slot golden table in `test/ort_slot_guard_test.dart`.
+`packages/betto_onnxrt/VERSION_ONNX`,
+`packages/betto_onnxrt/version_onnx.json`,
+`packages/betto_onnxrt/lib/src/generated/versions.g.dart`,
+`packages/betto_onnxrt/lib/src/ort_api.dart`,
+`packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift`,
+and the vtable-slot golden table in
+`packages/betto_onnxrt/test/ort_slot_guard_test.dart`.
 
-The process is automated in part by `tool/update_ort_version.dart`, which
+The process is automated in part by `packages/betto_onnxrt/tool/update_ort_version.dart`, which
 downloads all binary artifacts, computes their SHA-256 digests, probes for
 Windows patch releases, looks up the correct iOS SPM tag, and writes a
 ready-to-merge `version_onnx.json`. Manual steps — vtable-slot verification

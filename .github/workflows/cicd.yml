@@ -31,8 +31,8 @@ jobs:
       - name: Cache ORT binary
         uses: actions/cache@v5
         with:
-          path: .dart_tool/betto_onnxrt
-          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+          path: packages/betto_onnxrt/.dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('packages/betto_onnxrt/VERSION_ONNX') }}
 
       # cicd_linux is self-contained: it runs dart pub get (triggering the build
       # hook to download the ORT binary), creates the unversioned symlink, exports
@@ -57,8 +57,8 @@ jobs:
       - name: Cache ORT binary
         uses: actions/cache@v5
         with:
-          path: .dart_tool/betto_onnxrt
-          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+          path: packages/betto_onnxrt/.dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('packages/betto_onnxrt/VERSION_ONNX') }}
 
       # make cicd_macos runs: prepare_flutter → dart test → dart doc →
       # macos_test (Flutter integration test). Quality gate (license, format,
@@ -82,18 +82,24 @@ jobs:
       - name: Cache ORT binary
         uses: actions/cache@v5
         with:
-          path: .dart_tool/betto_onnxrt
-          key: ort-${{ runner.os }}-${{ hashFiles('VERSION_ONNX') }}
+          path: packages/betto_onnxrt/.dart_tool/betto_onnxrt
+          key: ort-${{ runner.os }}-${{ hashFiles('packages/betto_onnxrt/VERSION_ONNX') }}
 
       # Run dart test directly from PowerShell so $env:PATH is inherited with
       # no intermediate shell (Make → sh.exe) that could translate away the
       # Windows DLL directory. The ORT hook runs at the start of dart test
       # (before any test code) and downloads the DLL; the directory is already
       # on PATH at that point so DynamicLibrary.open('onnxruntime.dll') works.
-      - name: Run cicd_windows
+      - name: Run dart pub get
+        working-directory: packages/betto_onnxrt
         run: |
           dart pub global activate coverage
           dart pub get
+        shell: pwsh
+
+      - name: Run cicd_windows
+        working-directory: packages/betto_onnxrt
+        run: |
           $ORT_VER = (Get-Content version_onnx.json | ConvertFrom-Json).platforms.'windows-x64'.version
           $env:PATH = "$(Join-Path (Get-Location).Path ".dart_tool\betto_onnxrt\$ORT_VER");$env:PATH"
           dart test

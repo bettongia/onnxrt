@@ -15,11 +15,9 @@
 --ignore="**/.dart_tool/**"
 --ignore="coverage/**"
 --ignore="doc/**"
---ignore="docs/template/**"
---ignore=".claude/**"
+--ignore="site/**"
 --ignore="integration_test_app/ios/**"
 --ignore="integration_test_app/macos/**"
 --ignore="integration_test_app/android/**"
 --ignore="integration_test_app/build/**"
---ignore="site/**"
 .

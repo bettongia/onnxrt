@@ -27,45 +27,26 @@ breaks the release as defined.
 
 ### 1. `betto_onnxrt_ios` is unpublishable — the whole package is hidden from pub
 
-`dart pub publish --dry-run` inside `packages/betto_onnxrt_ios/` fails:
+**RESOLVED** in `docs/plans/complete/plan_monorepo_restructure.md` (2026-06-17).
 
-```
-* The pubspec is hidden, probably by .gitignore or pubignore.
-* You must have a LICENSE file in the root directory.
-Total compressed archive size: <1 KB.
-```
-
-Root cause: the repo-root `.pubignore` contains a bare `packages/` entry (added to
-keep the iOS subpackage out of the main `betto_onnxrt` archive). pub resolves ignore
-rules from the enclosing git repo, so when you publish the nested package, that
-`packages/` rule hides the nested package's own files — including its `pubspec.yaml`
-and `LICENSE`. The files are git-tracked (`git check-ignore` returns nothing), so
-this is purely the `.pubignore` interaction.
-
-**Fix:** make `betto_onnxrt_ios` a standalone publishable unit — either move it to
-its own git repository, or publish from a clean copy/checkout where the parent
-`.pubignore` does not apply. Verify with a fresh `dart pub publish --dry-run` that
-the archive contains pubspec + LICENSE + README + lib.
+The repo was restructured to a proper monorepo: `betto_onnxrt` moved from the
+git root into `packages/betto_onnxrt/`, the root `.pubignore` was deleted, and
+each package now carries its own minimal `.pubignore`. `dart pub publish --dry-run`
+passes for both packages with non-empty archives.
 
 ### 2. `betto_onnxrt_ios` version mismatch + missing CHANGELOG
 
-`packages/betto_onnxrt_ios/pubspec.yaml` is `version: 0.1.0`, but `betto_onnxrt` is
-`0.1.0-dev.1`. The roadmap pre-publication checklist explicitly requires matching
-version numbers. The iOS package also has no `CHANGELOG.md` (pub warns; it costs
-pub.dev score).
+**RESOLVED** in `docs/plans/complete/plan_monorepo_restructure.md` (2026-06-17).
 
-**Fix:** set iOS version to `0.1.0-dev.1` and add
-`packages/betto_onnxrt_ios/CHANGELOG.md`.
+`packages/betto_onnxrt_ios/pubspec.yaml` version bumped to `0.1.0-dev.1`.
+`packages/betto_onnxrt_ios/CHANGELOG.md` created with an initial entry.
 
 ### 3. `betto_onnxrt_ios.dart` doc tells users the wrong install method
 
-`packages/betto_onnxrt_ios/lib/betto_onnxrt_ios.dart:27–33` documents installation
-via a **git dependency** (`git: url: git@github.com:...`). If you are publishing to
-pub.dev, the canonical install is `betto_onnxrt_ios: ^0.1.0`. The README and main
-spec already use the pub.dev form; this library doc contradicts them and will confuse
-consumers. A git/SSH URL in a published package is also a going-public smell.
+**RESOLVED** in `docs/plans/complete/plan_monorepo_restructure.md` (2026-06-17).
 
-**Fix:** rewrite the usage block to the pub.dev dependency form.
+`packages/betto_onnxrt_ios/lib/betto_onnxrt_ios.dart` usage block rewritten to
+the pub.dev dependency form (`betto_onnxrt_ios: ^0.1.0-dev.1`).
 
 ---
 

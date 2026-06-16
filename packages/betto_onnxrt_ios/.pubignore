@@ -1,0 +1,6 @@
+.build/
+.dart_tool/
+build/
+ios/.build/
+ios/build/
+betto_onnxrt_ios.mk
