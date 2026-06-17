@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.1.0-dev.2
+
 ## 0.1.0-dev.1
 
 Initial pre-release of `betto_onnxrt_ios`.
@@ -10,5 +12,5 @@ Initial pre-release of `betto_onnxrt_ios`.
   `exact: "1.24.2"` — the earliest SPM tag that satisfies the ORT v1.22.0
   baseline used by `betto_onnxrt`.
 - Registers `BettoOnnxrtIosPlugin` so that `OnnxRuntime.load()` from
-  `betto_onnxrt` can resolve ORT C API symbols via `DynamicLibrary.process()`
-  on iOS.
+  `betto_onnxrt` can resolve ORT C API symbols via `DynamicLibrary.process()` on
+  iOS.

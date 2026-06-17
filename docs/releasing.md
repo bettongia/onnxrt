@@ -52,7 +52,7 @@ coupled to the ORT vtable baked into `betto_onnxrt` via `VERSION_ONNX`, so they
 are always released together.
 
 1. Decide the release version (e.g. `0.1.0`).
-2. Update `version:` in `pubspec.yaml` (root — `betto_onnxrt`).
+2. Update `version:` in `packages/betto_onnxrt/pubspec.yaml`.
 3. Update `version:` in `packages/betto_onnxrt_ios/pubspec.yaml`.
 
 The version in both files must be identical and must not carry a `-dev` or
@@ -62,31 +62,33 @@ The version in both files must be identical and must not carry a `-dev` or
 
 ## 3. Update CHANGELOG.md files
 
-### betto_onnxrt (`CHANGELOG.md` at repo root)
+Both changelogs follow the same convention: the version heading is the section
+for that release; bullet points go beneath it. There is no `## Unreleased`
+section — the topmost heading is always the in-progress version.
 
-Move everything from the `## Unreleased` section into a dated release heading:
+### betto_onnxrt (`packages/betto_onnxrt/CHANGELOG.md`)
+
+Add a release date to the heading and ensure all notable changes are listed:
 
 ```markdown
-## 0.1.0 — 2026-06-15
+## 0.1.0 — 2026-MM-DD
 
-- ...items from Unreleased...
+- ...items added during the dev cycle...
 ```
 
-Leave an empty `## Unreleased` section above it for future work.
+Then add a new empty heading above it for the next version:
+
+```markdown
+## 0.1.1
+
+## 0.1.0 — 2026-MM-DD
+...
+```
 
 ### betto_onnxrt_ios (`packages/betto_onnxrt_ios/CHANGELOG.md`)
 
-The iOS package does not yet have a `CHANGELOG.md`. Create one at
-`packages/betto_onnxrt_ios/CHANGELOG.md` with at minimum:
-
-```markdown
-# Changelog
-
-## 0.1.0
-
-Initial release. Flutter plugin shim that statically links ONNX Runtime v1.24.2
-(via SPM) into iOS host apps for use with betto_onnxrt.
-```
+Apply the same pattern — add a release date to the heading and populate it with
+any notable changes since the previous release.
 
 pub.dev requires a `CHANGELOG.md`; publishing without one will produce a warning
 and a lower pub score.
@@ -99,10 +101,12 @@ Run `dart pub publish --dry-run` for both packages and confirm there are no
 errors or unexpected warnings.
 
 ```bash
-# From the repo root:
+# betto_onnxrt:
+cd packages/betto_onnxrt
 dart pub publish --dry-run
+cd ../..
 
-# From the iOS package directory:
+# betto_onnxrt_ios:
 cd packages/betto_onnxrt_ios
 dart pub publish --dry-run
 cd ../..
@@ -125,7 +129,9 @@ Common things to check in the dry-run output:
 ### 5a. Publish betto_onnxrt
 
 ```bash
+cd packages/betto_onnxrt
 dart pub publish
+cd ../..
 ```
 
 Follow the authentication prompts if this is the first publish from this

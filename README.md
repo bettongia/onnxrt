@@ -38,8 +38,8 @@ Add to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  betto_onnxrt: ^0.1.0-dev.1
-  betto_onnxrt_ios: ^0.1.0-dev.1 # Flutter + iOS targets only
+  betto_onnxrt: ^0.1.0-dev.2
+  betto_onnxrt_ios: ^0.1.0-dev.2 # Flutter + iOS targets only
 ```
 
 Run `dart pub get` (or `flutter pub get`). The native-assets build hook
@@ -55,8 +55,31 @@ final outputs = session.run({'input': inputTensor});
 session.dispose();
 ```
 
-See the [specification](docs/spec/README.md) for the full API and the
-[example](example/) directory for a working command-line sample.
+See the [specification](docs/spec/README.md) for the full API.
+
+---
+
+## Example
+
+[`packages/betto_onnxrt/example/magika/`](packages/betto_onnxrt/example/magika/)
+is a standalone Dart CLI tool that detects file types using Google's Magika v3.3
+ONNX model. It demonstrates end-to-end use of `OnnxRuntime`, `OnnxSession`, and
+`ModelDownloader` with a real-world model, and its output mirrors the Python
+Magika `--json` format.
+
+```bash
+cd packages/betto_onnxrt/example/magika
+
+# Run directly (JIT — no build step needed):
+dart run bin/magika.dart <file>
+
+# Or compile to a native binary:
+dart build cli
+./build/cli/macos_arm64/bundle/bin/magika <file>
+```
+
+The model is downloaded and SHA-256 verified on first run; no manual setup is
+required.
 
 ---
 
@@ -81,7 +104,7 @@ notes aimed at AI-assisted development.
 
 ## Status
 
-Pre-release (`0.1.0-dev.1`).
+Pre-release (`0.1.0-dev.2`).
 
 See the [v0 roadmap](docs/roadmap/v0.md) for remaining work before the first
 stable release.
