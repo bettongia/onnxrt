@@ -18,6 +18,8 @@
 /// annotated with the ORT symbol name so that version drift is detectable.
 library;
 
+// coverage:ignore-file
+
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';

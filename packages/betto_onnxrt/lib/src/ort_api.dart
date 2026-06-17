@@ -38,6 +38,8 @@
 /// 4. Update `_expectedSlotsV22` in `test/ort_slot_guard_test.dart`.
 library;
 
+// coverage:ignore-file
+
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';

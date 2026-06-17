@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// coverage:ignore-file
+
 /// [OnnxRuntime] — loads the ORT native library staged by the build hook.
 ///
 /// This file is native-only (`dart:io`). Web is excluded from

@@ -59,6 +59,16 @@ coverage_html:
 
 coverage:
 	cd $(BETTO_PKG) && dart test --coverage-path=coverage/lcov.info
+	@# Strip FFI-only files untestable without the ORT binary.
+	@# dart test --coverage-path does not honour coverage:ignore-file pragmas,
+	@# so we filter with awk.  Uses skip==0 (not !skip) to avoid zsh history
+	@# expansion of ! in recipe strings.  $$ is Makefile-escaped for the
+	@# shell literal $ used as a regex end-of-line anchor.
+	@if [ -f $(BETTO_PKG)/coverage/lcov.info ]; then \
+	  awk '/^SF:.*\/runtime\.dart$$/ { skip=1 } /^SF:.*\/session\.dart$$/ { skip=1 } /^SF:.*\/ort_api\.dart$$/ { skip=1 } skip==0 { print } /^end_of_record/ { skip=0 }' \
+	    $(BETTO_PKG)/coverage/lcov.info > $(BETTO_PKG)/coverage/lcov_filtered.info && \
+	  mv $(BETTO_PKG)/coverage/lcov_filtered.info $(BETTO_PKG)/coverage/lcov.info; \
+	fi
 	$(MAKE) --no-print-directory coverage_html
 .PHONY: coverage
 
