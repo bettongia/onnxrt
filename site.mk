@@ -12,7 +12,7 @@ REPO_URL    := $(shell awk '/^repository:/{print $$2}'  packages/betto_onnxrt/pu
 _HEADER := $(SITE_DIR)/_header.html
 _INDEX  := $(SITE_DIR)/_index.md
 
-doc_site: $(SITE_DIR)/favicon.ico $(SITE_DIR)/bettongia-$(DOCS_DIR).css $(SITE_DIR)/index.html $(SITE_DIR)/spec.html $(SITE_DIR)/roadmap.html  $(SITE_DIR)/api/index.html coverage
+doc_site: $(SITE_DIR)/favicon.ico $(SITE_DIR)/bettongia-$(DOCS_DIR).css $(SITE_DIR)/index.html $(SITE_DIR)/spec.html $(SITE_DIR)/roadmap.html  $(SITE_DIR)/api/index.html coverage_html
 .PHONY: site
 
 $(SITE_DIR):

@@ -48,11 +48,18 @@ doc:
 	cd $(BETTO_PKG) && dart doc
 .PHONY: doc
 
+coverage_html:
+	@if [ -f $(BETTO_PKG)/coverage/lcov.info ]; then \
+	  rm -rf $(SITE_DIR)/coverage && \
+	  genhtml $(BETTO_PKG)/coverage/lcov.info -o $(SITE_DIR)/coverage; \
+	else \
+	  echo "coverage_html: skipping — no lcov.info found; run 'make coverage' first"; \
+	fi
+.PHONY: coverage_html
+
 coverage:
 	cd $(BETTO_PKG) && dart test --coverage-path=coverage/lcov.info
-	rm -rf $(BETTO_PKG)/site/coverage
-	mkdir -p $(BETTO_PKG)/site/coverage
-	genhtml $(BETTO_PKG)/coverage/lcov.info -o $(BETTO_PKG)/site/coverage
+	$(MAKE) --no-print-directory coverage_html
 .PHONY: coverage
 
 license_check:
@@ -82,10 +89,7 @@ cicd_linux:
 	  ln -sf "libonnxruntime.so.$$ORT_VER" "$$ORT_CACHE/libonnxruntime.so"; \
 	  export LD_LIBRARY_PATH="$$(pwd)/$$ORT_CACHE$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}"; \
 	  dart test && \
-	  dart test --coverage-path=coverage/lcov.info && \
-	  rm -rf site/coverage && \
-	  mkdir -p site/coverage && \
-	  genhtml coverage/lcov.info -o site/coverage
+	  dart test --coverage-path=coverage/lcov.info
 .PHONY: cicd_linux
 
 cicd_macos: prepare_flutter prepare_ios analyze_ios test doc macos_test

@@ -1,9 +1,8 @@
 # betto_onnxrt Specification
 
-**Package**: `betto_onnxrt`  
-**Version**: 0.1.0  
-**ORT version**: 1.22.0  
-**Audience**: Dart and Flutter developers integrating `betto_onnxrt` into applications.
+**Package**: `betto_onnxrt` **Version**: 0.1.0 **ORT version**: 1.22.0
+**Audience**: Dart and Flutter developers integrating `betto_onnxrt` into
+applications.
 
 ---
 
@@ -19,7 +18,8 @@
    - 5.3 [OnnxTensor and OnnxElementType](#53-onnxtensor-and-onnxelementtype)
    - 5.4 [SessionOptions](#54-sessionoptions)
    - 5.5 [ModelDownloader](#55-modeldownloader)
-   - 5.6 [ModelSpec, ModelFile, and ResolvedModel](#56-modelspec-modelfile-and-resolvedmodel)
+   - 5.6
+     [ModelSpec, ModelFile, and ResolvedModel](#56-modelspec-modelfile-and-resolvedmodel)
    - 5.7 [AllowlistProvider](#57-allowlistprovider)
    - 5.8 [Error handling and recovery](#58-error-handling-and-recovery)
 6. [iOS — SPM plugin shim](#6-ios--spm-plugin-shim)
@@ -35,9 +35,10 @@
 ONNX Runtime inference to Dart and Flutter applications across macOS, Linux,
 Windows, Android, and iOS. It has three concerns:
 
-1. **Binary delivery** — a native-assets build hook (`packages/betto_onnxrt/hook/build.dart`)
-   downloads and verifies the correct prebuilt ORT binary for the target
-   platform at compile time. Consumers never manage binaries manually.
+1. **Binary delivery** — a native-assets build hook
+   (`packages/betto_onnxrt/hook/build.dart`) downloads and verifies the correct
+   prebuilt ORT binary for the target platform at compile time. Consumers never
+   manage binaries manually.
 
 2. **Inference API** — a thin FFI wrapper around the ORT C API vtable that
    exposes a generalised `OnnxSession.run` capable of loading any ONNX model,
@@ -55,21 +56,19 @@ requires updating `packages/betto_onnxrt/VERSION_ONNX`, regenerating
 `packages/betto_onnxrt/lib/src/generated/versions.g.dart`, and updating the
 SHA-256 manifest in `packages/betto_onnxrt/hook/build.dart`.
 
-The primary consumer within the Bettongia workspace is `kmdb_inferencing`,
-which uses `betto_onnxrt` to run BGE embedding models for semantic search.
 The library is intentionally generic so it can serve any ONNX model.
 
 ---
 
 ## 2. Platform support
 
-| Platform | Status       | Notes |
-|----------|--------------|-------|
-| macOS    | Supported    | `libonnxruntime.dylib` bundled via hook; wrapped in a `.framework` by Flutter. |
-| Linux    | Supported    | `libonnxruntime.so` bundled via hook. |
-| Windows  | Supported    | `onnxruntime.dll` bundled via hook. |
-| Android  | Supported    | `libonnxruntime.so` bundled in APK `lib/{abi}/`; requires `minSdkVersion 35`. Supported ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`. |
-| iOS      | Supported    | Via the `betto_onnxrt_ios` SPM plugin shim. ORT is statically linked at build time; `DynamicLibrary.process()` resolves the symbols. See §6. |
+| Platform | Status        | Notes                                                                                                                                                                                         |
+| -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS    | Supported     | `libonnxruntime.dylib` bundled via hook; wrapped in a `.framework` by Flutter.                                                                                                                |
+| Linux    | Supported     | `libonnxruntime.so` bundled via hook.                                                                                                                                                         |
+| Windows  | Supported     | `onnxruntime.dll` bundled via hook.                                                                                                                                                           |
+| Android  | Supported     | `libonnxruntime.so` bundled in APK `lib/{abi}/`; requires `minSdkVersion 35`. Supported ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`.                                                    |
+| iOS      | Supported     | Via the `betto_onnxrt_ios` SPM plugin shim. ORT is statically linked at build time; `DynamicLibrary.process()` resolves the symbols. See §6.                                                  |
 | Web      | Not supported | The browser provides no FFI mechanism and no `dart:io`, so the ORT native library cannot be loaded or called. ONNX inference on web would require a WASM build of ORT, which is out of scope. |
 
 ---
@@ -97,26 +96,28 @@ build hook handles the ORT `.so` download, verification, and placement.
 
 ### iOS
 
-Add the `betto_onnxrt_ios` package as a dependency alongside `betto_onnxrt`.
-No additional Xcode configuration is required; the SPM plugin shim pulls the
-ORT XCFramework automatically. See §6 for full details.
+Add the `betto_onnxrt_ios` package as a dependency alongside `betto_onnxrt`. No
+additional Xcode configuration is required; the SPM plugin shim pulls the ORT
+XCFramework automatically. See §6 for full details.
 
 ---
 
 ## 4. Binary delivery — native-assets build hook
 
 `packages/betto_onnxrt/hook/build.dart` runs automatically during every
-`dart build` or `flutter build`. It has no effect on the consumer beyond
-binary availability.
+`dart build` or `flutter build`. It has no effect on the consumer beyond binary
+availability.
 
 ### What the hook does
 
 1. Determines the target platform and ABI from the build environment.
 2. Checks whether a valid cached binary already exists at
-   `packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/`. If so, skips the download.
+   `packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/`. If so, skips
+   the download.
 3. Downloads the correct prebuilt ORT binary:
    - **Desktop** (macOS, Linux, Windows): GitHub Releases.
-   - **Android**: Maven Central (the official `com.microsoft.onnxruntime:onnxruntime-android` AAR).
+   - **Android**: Maven Central (the official
+     `com.microsoft.onnxruntime:onnxruntime-android` AAR).
 4. Verifies SHA-256:
    - **Android**: two-level verification — the downloaded AAR archive first,
      then each extracted `.so` per ABI.
@@ -124,9 +125,10 @@ binary availability.
      digest in `version_onnx.json`. Real SHA-256 digests are in place as of
      v1.22.0. Cached binaries are trusted via a `.sha256` sidecar file.
    - **iOS**: the hook emits no `CodeAsset` on iOS and does not consult the
-     manifest; iOS SHA-256 is recorded in `version_onnx.json` for reference only.
-5. Registers the binary as a `CodeAsset` with `DynamicLoadingBundled` link
-   mode so the Dart/Flutter build system places it alongside the executable.
+     manifest; iOS SHA-256 is recorded in `version_onnx.json` for reference
+     only.
+5. Registers the binary as a `CodeAsset` with `DynamicLoadingBundled` link mode
+   so the Dart/Flutter build system places it alongside the executable.
 
 ### Hook does nothing on iOS
 
@@ -136,9 +138,8 @@ iOS support is handled entirely by the SPM plugin shim (see §6).
 
 ### Cache location
 
-`packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/` —
-version-scoped so bumping `packages/betto_onnxrt/VERSION_ONNX` forces a
-re-download.
+`packages/betto_onnxrt/.dart_tool/betto_onnxrt/{ort_version}/` — version-scoped
+so bumping `packages/betto_onnxrt/VERSION_ONNX` forces a re-download.
 
 ---
 
@@ -148,8 +149,8 @@ All public types are exported from `package:betto_onnxrt/betto_onnxrt.dart`.
 
 ### 5.1 OnnxRuntime
 
-Entry point for inference. Opens the ORT native library staged by the build
-hook and initialises the `OrtApi` vtable.
+Entry point for inference. Opens the ORT native library staged by the build hook
+and initialises the `OrtApi` vtable.
 
 ```dart
 final class OnnxRuntime {
@@ -175,13 +176,13 @@ final class OnnxRuntime {
 2. Create one or more sessions with `createSession` or `createSessionFromFile`.
 3. Call `OnnxSession.run` for inference.
 4. Call `OnnxSession.dispose()` when each session is no longer needed.
-5. Call `OnnxRuntime.dispose()` when the runtime itself is no longer needed.
-   All sessions must be disposed before the runtime.
+5. Call `OnnxRuntime.dispose()` when the runtime itself is no longer needed. All
+   sessions must be disposed before the runtime.
 
 **`createSession(modelBytes)`** loads the ONNX model directly from memory via
 ORT's `CreateSessionFromArray` (slot 8). Prefer this when the model is already
-in memory; it avoids temporary file I/O and is safe on platforms that use
-lazy mmap.
+in memory; it avoids temporary file I/O and is safe on platforms that use lazy
+mmap.
 
 **`createSessionFromFile(modelPath)`** loads the model from an absolute file
 path via ORT's `CreateSession` (slot 7). `modelPath` must exist on the local
@@ -207,16 +208,16 @@ final class OnnxSession {
 ```
 
 **`run`** submits the inputs to ORT (`Run`, slot 9) and returns the requested
-output tensors in the same order as `outputNames`. Each output tensor's
-`shape` is read from the native `OrtValue` via the type-and-shape-info vtable
-slots (65, 61, 62). All native handles are released before `run` returns.
+output tensors in the same order as `outputNames`. Each output tensor's `shape`
+is read from the native `OrtValue` via the type-and-shape-info vtable slots (65,
+61, 62). All native handles are released before `run` returns.
 
-**`run` throws** `Exception` if any ORT call fails; `ArgumentError` if an
-output tensor has an unsupported element type.
+**`run` throws** `Exception` if any ORT call fails; `ArgumentError` if an output
+tensor has an unsupported element type.
 
 **`dispose`** releases the native ORT session, memory info, and environment
-handles. Must be called exactly once; calling `run` after `dispose` is
-undefined behaviour.
+handles. Must be called exactly once; calling `run` after `dispose` is undefined
+behaviour.
 
 **Output element type**: `run` reads the element type from each output
 `OrtValue` via `GetTensorElementType` (vtable slot 60) and returns the correct
@@ -257,16 +258,16 @@ final class OnnxTensor {
 Supported types in v0.1.0:
 
 | `OnnxElementType` | ONNX type code | `TypedData` type |
-|-------------------|---------------|-----------------|
-| `float32`         | 1             | `Float32List`   |
-| `uint8`           | 2             | `Uint8List`     |
-| `int32`           | 6             | `Int32List`     |
-| `int64`           | 7             | `Int64List`     |
-| `float64`         | 11            | `Float64List`   |
+| ----------------- | -------------- | ---------------- |
+| `float32`         | 1              | `Float32List`    |
+| `uint8`           | 2              | `Uint8List`      |
+| `int32`           | 6              | `Int32List`      |
+| `int64`           | 7              | `Int64List`      |
+| `float64`         | 11             | `Float64List`    |
 
 Output tensor data is **copied** from native memory into the Dart `TypedData`
-before the `OrtValue` handle is released. Callers own the returned data and
-do not need to free it.
+before the `OrtValue` handle is released. Callers own the returned data and do
+not need to free it.
 
 ### 5.4 SessionOptions
 
@@ -322,14 +323,15 @@ check only). Returns a `ResolvedModel` with absolute paths to each file.
    on mismatch.
 4. Atomically rename `.part` to the final path.
 
-**Concurrency**: concurrent callers sharing the same `cacheDir` are safe
-without locking; last-writer-wins on the atomic rename is correct because both
-writers produce byte-identical, checksum-verified output.
+**Concurrency**: concurrent callers sharing the same `cacheDir` are safe without
+locking; last-writer-wins on the atomic rename is correct because both writers
+produce byte-identical, checksum-verified output.
 
 **`onProgress`**: called with `(received, total)` bytes during each download.
 `total` is `-1` when the server does not supply a `Content-Length` header.
 
 **Throws**:
+
 - `ArgumentError` if `allowlist` rejects `spec`.
 - `StateError` if a downloaded file fails SHA-256 verification.
 - `HttpException` if the server returns a non-2xx status.
@@ -343,16 +345,16 @@ The core guarantee is that **`ensure` is idempotent and self-healing** — calli
 it is always safe and is the correct recovery action for almost every filesystem
 anomaly. Consumers do not need to pre-check the cache state before calling it.
 
-| Scenario | What happens |
-|----------|-------------|
-| File is present and checksum matches | Returned immediately; no network access. |
-| File is missing (never downloaded, or manually deleted) | Re-downloaded and verified. |
-| File is present but checksum fails (corrupted or manually modified) | Re-downloaded and verified; corrupt file is overwritten. |
-| `ModelSpec` updated to a new URL or SHA-256 | Existing file fails the new checksum check; re-downloaded automatically. |
-| Leftover `.part` file from a previously interrupted download | Silently overwritten on the next download attempt. |
-| Cache directory missing (manually deleted) | Recreated automatically before writing. |
-| Disk full during download | `.part` file may be left behind; surfaces as `IOException`. Call `ensure` again once space is available — the `.part` file is overwritten and the download retried. |
-| File or directory permission error | Surfaces as `IOException`. Fix permissions on `cacheDir`, then call `ensure` again. |
+| Scenario                                                            | What happens                                                                                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File is present and checksum matches                                | Returned immediately; no network access.                                                                                                                            |
+| File is missing (never downloaded, or manually deleted)             | Re-downloaded and verified.                                                                                                                                         |
+| File is present but checksum fails (corrupted or manually modified) | Re-downloaded and verified; corrupt file is overwritten.                                                                                                            |
+| `ModelSpec` updated to a new URL or SHA-256                         | Existing file fails the new checksum check; re-downloaded automatically.                                                                                            |
+| Leftover `.part` file from a previously interrupted download        | Silently overwritten on the next download attempt.                                                                                                                  |
+| Cache directory missing (manually deleted)                          | Recreated automatically before writing.                                                                                                                             |
+| Disk full during download                                           | `.part` file may be left behind; surfaces as `IOException`. Call `ensure` again once space is available — the `.part` file is overwritten and the download retried. |
+| File or directory permission error                                  | Surfaces as `IOException`. Fix permissions on `cacheDir`, then call `ensure` again.                                                                                 |
 
 **Clearing the cache explicitly**: to force a fresh download — for example, to
 free disk space or to recover from an unknown filesystem state — delete the
@@ -371,8 +373,8 @@ To clear all cached models, delete the entire `cacheDir` directory. `ensure`
 will recreate it on the next call.
 
 **Choosing a cache location**: use the application's persistent data directory
-(e.g. from `path_provider`'s `getApplicationSupportDirectory()` on Flutter, or
-a stable path of your choice on Dart CLI). Avoid `Directory.systemTemp` in
+(e.g. from `path_provider`'s `getApplicationSupportDirectory()` on Flutter, or a
+stable path of your choice on Dart CLI). Avoid `Directory.systemTemp` in
 production — its contents may be cleared by the OS between runs, triggering
 unnecessary re-downloads.
 
@@ -446,19 +448,18 @@ A failure here means the ORT native library could not be opened or its API
 version is incompatible. This is not a transient error — retrying `load()` on
 the same process will produce the same result. Recovery options are:
 
-- If the error message indicates an API version mismatch, the bundled ORT
-  binary is incompatible with the vtable slots compiled into the library.
-  Update `betto_onnxrt` to a version that matches the binary, or bump
-  `VERSION_ONNX` and rebuild.
+- If the error message indicates an API version mismatch, the bundled ORT binary
+  is incompatible with the vtable slots compiled into the library. Update
+  `betto_onnxrt` to a version that matches the binary, or bump `VERSION_ONNX`
+  and rebuild.
 - If the library cannot be found, the native-assets build hook did not run or
   did not stage the binary correctly. Run `dart pub get` (which triggers the
   hook) and rebuild. On macOS, `OnnxRuntime.load()` tries multiple library
-  locations in order: Flutter framework bundle first, then `bundle/lib/`
-  (for `dart build cli` AOT binaries), then `.dart_tool/lib/` (for
-  `dart run` JIT mode). If all fail, the final diagnostic error names the
-  framework path.
-- On iOS, a `symbol not found: OrtGetApiBase` error means `betto_onnxrt_ios`
-  is not in the dependency graph. Add it to `pubspec.yaml` and rebuild.
+  locations in order: Flutter framework bundle first, then `bundle/lib/` (for
+  `dart build cli` AOT binaries), then `.dart_tool/lib/` (for `dart run` JIT
+  mode). If all fail, the final diagnostic error names the framework path.
+- On iOS, a `symbol not found: OrtGetApiBase` error means `betto_onnxrt_ios` is
+  not in the dependency graph. Add it to `pubspec.yaml` and rebuild.
 
 #### OnnxSession.run()
 
@@ -471,14 +472,14 @@ Instead:
 2. Create a fresh session via `runtime.createSession(...)`.
 3. Retry the inference call on the new session.
 
-The `OnnxRuntime` instance itself remains valid after a session failure and
-does not need to be re-created.
+The `OnnxRuntime` instance itself remains valid after a session failure and does
+not need to be re-created.
 
 #### ModelDownloader.ensure()
 
 Network and checksum errors from `ensure()` are transient by design — calling
-`ensure()` again is always the correct recovery action. See the cache
-management table in §5.5 for a full breakdown of scenarios.
+`ensure()` again is always the correct recovery action. See the cache management
+table in §5.5 for a full breakdown of scenarios.
 
 ---
 
@@ -491,17 +492,17 @@ pipeline requires **dynamic** link mode, so the build hook cannot stage a
 
 ### How it works
 
-1. `betto_onnxrt_ios` is a Flutter plugin (in `packages/betto_onnxrt_ios/`)
-   that declares an SPM dependency on
-   `microsoft/onnxruntime-swift-package-manager` (`onnxruntime-c`).
-2. Xcode pulls the ORT XCFramework via SPM and **statically links** it into
-   the host app binary at build time.
+1. `betto_onnxrt_ios` is a Flutter plugin (in `packages/betto_onnxrt_ios/`) that
+   declares an SPM dependency on `microsoft/onnxruntime-swift-package-manager`
+   (`onnxruntime-c`).
+2. Xcode pulls the ORT XCFramework via SPM and **statically links** it into the
+   host app binary at build time.
 3. Because ORT is part of the process image at launch, `betto_onnxrt` uses
-   `DynamicLibrary.process()` on iOS instead of `DynamicLibrary.open(...)`.
-   All ORT C API symbols are resolved from the process image.
+   `DynamicLibrary.process()` on iOS instead of `DynamicLibrary.open(...)`. All
+   ORT C API symbols are resolved from the process image.
 4. The build hook detects `Platform.isIOS`, emits a warning, and produces no
-   `CodeAsset`. The hook's absence is the correct behaviour; the plugin shim
-   is the sole mechanism.
+   `CodeAsset`. The hook's absence is the correct behaviour; the plugin shim is
+   the sole mechanism.
 
 ### Consumer setup
 
@@ -516,11 +517,11 @@ dependencies:
 No additional Xcode project configuration is required. SPM integration is
 declared inside the plugin and handled automatically by `flutter build ios`.
 
-**Multi-platform apps**: it is safe to add `betto_onnxrt_ios` unconditionally
-to an app that also targets Android, macOS, Windows, or Linux. The plugin
-declares only the `ios` platform in its pubspec, so Flutter activates it
-exclusively during iOS builds. It has no effect on any other platform and
-introduces no runtime overhead there.
+**Multi-platform apps**: it is safe to add `betto_onnxrt_ios` unconditionally to
+an app that also targets Android, macOS, Windows, or Linux. The plugin declares
+only the `ios` platform in its pubspec, so Flutter activates it exclusively
+during iOS builds. It has no effect on any other platform and introduces no
+runtime overhead there.
 
 ### CocoaPods note
 
@@ -535,9 +536,8 @@ CocoaPods.
 
 **`OnnxSession` is thread-affine** — it is bound to the thread (Dart isolate)
 that created it, and all `run` and `dispose` calls must come from that same
-isolate. ORT maintains an internal
-thread pool per environment; releasing a session from a different isolate can
-corrupt that pool's mutex state.
+isolate. ORT maintains an internal thread pool per environment; releasing a
+session from a different isolate can corrupt that pool's mutex state.
 
 **Pattern for isolate-based parallelism**: create a fresh `OnnxRuntime` (and
 therefore a fresh ORT environment) inside each isolate. Do not share sessions
@@ -565,18 +565,18 @@ another.
 
 ### CPU-only inference
 
-v0.1.0 uses only the default ORT CPU execution provider. GPU acceleration
-(CUDA on Windows/Linux, CoreML on macOS/iOS, NNAPI on Android) is not exposed.
-Adding execution provider support requires extending `SessionOptions` and the
-session creation path; this is tracked for a future version.
+v0.1.0 uses only the default ORT CPU execution provider. GPU acceleration (CUDA
+on Windows/Linux, CoreML on macOS/iOS, NNAPI on Android) is not exposed. Adding
+execution provider support requires extending `SessionOptions` and the session
+creation path; this is tracked for a future version.
 
 ### ONNX external data format not supported via in-memory loading
 
-Some large models split weights into a separate `.onnx_data` file alongside
-the `.onnx` graph file (ONNX external data format). `createSession(modelBytes)`
+Some large models split weights into a separate `.onnx_data` file alongside the
+`.onnx` graph file (ONNX external data format). `createSession(modelBytes)`
 cannot load such models — ORT requires the external data file to be on disk and
-resolvable relative to the `.onnx` path, which is impossible when loading from
-a byte array.
+resolvable relative to the `.onnx` path, which is impossible when loading from a
+byte array.
 
 `createSessionFromFile(modelPath)` may work if all files are co-located in the
 same directory (e.g. downloaded together via `ModelDownloader` into
@@ -584,19 +584,18 @@ same directory (e.g. downloaded together via `ModelDownloader` into
 in v0.
 
 **Workaround**: prefer quantized or otherwise self-contained single-file ONNX
-exports. For BGE-M3, for example, `Xenova/bge-m3`'s `model_quantized.onnx`
-(570 MB, int8 weights, float32 output) is a drop-in alternative to the
-full-precision `BAAI/bge-m3` export which requires a separate 2.17 GB
-`model.onnx_data` file.
+exports. For BGE-M3, for example, `Xenova/bge-m3`'s `model_quantized.onnx` (570
+MB, int8 weights, float32 output) is a drop-in alternative to the full-precision
+`BAAI/bge-m3` export which requires a separate 2.17 GB `model.onnx_data` file.
 
 ### iOS SHA-256 digest is not verified at build time
 
 Desktop (macOS, Linux, Windows) SHA-256 verification is active as of v1.22.0.
-All desktop archive digests are recorded in `version_onnx.json` and verified
-by the hook before extraction.
+All desktop archive digests are recorded in `version_onnx.json` and verified by
+the hook before extraction.
 
-The iOS entry in `version_onnx.json` carries a real SHA-256 digest (sourced
-from Microsoft's SPM `Package.swift` at tag 1.24.2) for documentation and
+The iOS entry in `version_onnx.json` carries a real SHA-256 digest (sourced from
+Microsoft's SPM `Package.swift` at tag 1.24.2) for documentation and
 supply-chain reference. However, the hook exits before any manifest lookup on
 iOS — no `CodeAsset` is emitted and no binary is downloaded. The iOS digest is
 therefore not verified at build time; it is a documented-unreachable value that
@@ -617,9 +616,9 @@ Pure-Dart ORT inference is exercised automatically in CI on both platforms:
   target; it assumes `PATH` already includes the ORT DLL directory (as the CI
   pipeline sets up in the "Add ORT DLL directory to PATH" step).
 
-Flutter Desktop automation on Linux and Windows remains out of scope for v0.
-The written manual smoke checklist at `docs/manual_checks.md` covers this gap
-with the detail needed for a trustworthy non-automated check: Flutter
+Flutter Desktop automation on Linux and Windows remains out of scope for v0. The
+written manual smoke checklist at `docs/manual_checks.md` covers this gap with
+the detail needed for a trustworthy non-automated check: Flutter
 channel/version, load-verification steps, failure signatures, and where to
 record evidence in the PR description.
 
@@ -628,22 +627,21 @@ record evidence in the PR description.
 ## 9. Upgrading ONNX Runtime
 
 Adopting a new ORT release requires coordinated changes across
-`packages/betto_onnxrt/VERSION_ONNX`,
-`packages/betto_onnxrt/version_onnx.json`,
+`packages/betto_onnxrt/VERSION_ONNX`, `packages/betto_onnxrt/version_onnx.json`,
 `packages/betto_onnxrt/lib/src/generated/versions.g.dart`,
 `packages/betto_onnxrt/lib/src/ort_api.dart`,
-`packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift`,
-and the vtable-slot golden table in
+`packages/betto_onnxrt_ios/ios/betto_onnxrt_ios/Package.swift`, and the
+vtable-slot golden table in
 `packages/betto_onnxrt/test/ort_slot_guard_test.dart`.
 
-The process is automated in part by `packages/betto_onnxrt/tool/update_ort_version.dart`, which
-downloads all binary artifacts, computes their SHA-256 digests, probes for
-Windows patch releases, looks up the correct iOS SPM tag, and writes a
-ready-to-merge `version_onnx.json`. Manual steps — vtable-slot verification
-against the new `onnxruntime_c_api.h` and the integration test matrix — cannot
-be automated.
+The process is automated in part by
+`packages/betto_onnxrt/tool/update_ort_version.dart`, which downloads all binary
+artifacts, computes their SHA-256 digests, probes for Windows patch releases,
+looks up the correct iOS SPM tag, and writes a ready-to-merge
+`version_onnx.json`. Manual steps — vtable-slot verification against the new
+`onnxruntime_c_api.h` and the integration test matrix — cannot be automated.
 
 **Full upgrade procedure**: `docs/upgrading_onnxrt.md`
 
-**Plan**: `docs/plans/plan_ort_version_upgrade.md` (tracked under Goal #6 of the v0
-roadmap).
+**Plan**: `docs/plans/plan_ort_version_upgrade.md` (tracked under Goal #6 of the
+v0 roadmap).

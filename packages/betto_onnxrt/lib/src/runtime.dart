@@ -15,8 +15,7 @@
 /// [OnnxRuntime] — loads the ORT native library staged by the build hook.
 ///
 /// This file is native-only (`dart:io`). Web is excluded from
-/// `betto_onnxrt` by design — semantic search is not supported on web
-/// (see §20 in the KMDB spec).
+/// `betto_onnxrt` by design — semantic search is not supported on web.
 library;
 
 import 'dart:convert';
