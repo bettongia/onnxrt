@@ -6,5 +6,4 @@ doc/
 downloads/
 logs/
 site/
-integration_test_app/
 betto_onnxrt.mk

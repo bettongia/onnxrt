@@ -1,0 +1,8 @@
+name: betto_onnxrt_workspace
+publish_to: none
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.27.0"
+workspace:
+  - packages/betto_onnxrt
+  - packages/betto_onnxrt_ios
