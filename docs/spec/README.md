@@ -1,33 +1,12 @@
-# betto_onnxrt Specification
-
-**Package**: `betto_onnxrt` **Version**: 0.1.0 **ORT version**: 1.22.0
-**Audience**: Dart and Flutter developers integrating `betto_onnxrt` into
-applications.
-
 ---
+title: Technical Specification
+subtitle: betto_onnxrt
+toc-title: "Contents"
+...
 
-## Contents
-
-1. [Overview](#1-overview)
-2. [Platform support](#2-platform-support)
-3. [Requirements](#3-requirements)
-4. [Binary delivery — native-assets build hook](#4-binary-delivery--native-assets-build-hook)
-5. [Public API](#5-public-api)
-   - 5.1 [OnnxRuntime](#51-onnxruntime)
-   - 5.2 [OnnxSession](#52-onnxsession)
-   - 5.3 [OnnxTensor and OnnxElementType](#53-onnxtensor-and-onnxelementtype)
-   - 5.4 [SessionOptions](#54-sessionoptions)
-   - 5.5 [ModelDownloader](#55-modeldownloader)
-   - 5.6
-     [ModelSpec, ModelFile, and ResolvedModel](#56-modelspec-modelfile-and-resolvedmodel)
-   - 5.7 [AllowlistProvider](#57-allowlistprovider)
-   - 5.8 [Error handling and recovery](#58-error-handling-and-recovery)
-6. [iOS — SPM plugin shim](#6-ios--spm-plugin-shim)
-7. [Thread safety](#7-thread-safety)
-8. [Known limitations and future work](#8-known-limitations-and-future-work)
-9. [Upgrading ONNX Runtime](#9-upgrading-onnx-runtime)
-
----
+- **Package:** `betto_onnxrt`
+- **Version:** 0.1.0-dev.2
+- **Dart SDK:** ≥ 3.12.0
 
 ## 1. Overview
 
