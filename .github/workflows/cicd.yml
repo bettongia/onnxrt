@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +24,9 @@ jobs:
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Install Pandoc
+        uses: pandoc/actions/setup@v1
 
       - name: Install addlicense
         run: |
@@ -38,6 +46,26 @@ jobs:
       # hook to download the ORT binary), creates the unversioned symlink, exports
       # LD_LIBRARY_PATH, then runs the full quality gate via a sub-make.
       - run: make cicd_linux
+
+      - run: make doc_site
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: "./site"
+
+  deployment:
+    runs-on: ubuntu-latest
+    needs: build
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
   test-macos:
     runs-on: macos-latest
