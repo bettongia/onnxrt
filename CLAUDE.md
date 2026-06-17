@@ -154,7 +154,8 @@ into `packages/betto_onnxrt/integration_test_app/` as a path dependency;
 what `from: "1.22.0"` was already resolving to). Run `make ios_test` to verify
 end-to-end on a simulator. After the first successful build, confirm
 `_OrtGetApiBase` survives static linking:
-`nm -gU packages/betto_onnxrt/integration_test_app/build/ios/iphonesimulator/Runner.app/Runner | grep OrtGetApiBase`.
+`nm -gU packages/betto_onnxrt/integration_test_app/build/ios/iphonesimulator/Runner.app/Runner.debug.dylib | grep OrtGetApiBase`.
+(In debug builds Flutter splits app code into `Runner.debug.dylib`; `Runner` itself is just a stub loader.)
 
 **Roadmap**: The active roadmap is `docs/roadmap/v0.md`. All development work
 should be driven by and traceable to an item in that roadmap. We are currently

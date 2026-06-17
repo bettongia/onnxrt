@@ -6,8 +6,6 @@ description: >
   microsoft/onnxruntime-swift-package-manager (onnxruntime), which causes Xcode
   to statically link ORT into the host app binary.
 version: 0.1.0-dev.1
-resolution: workspace
-
 repository: https://github.com/bettongia/onnxrt
 homepage: https://github.com/bettongia/onnxrt
 issue_tracker: https://github.com/bettongia/onnxrt/issues

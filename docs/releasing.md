@@ -1,8 +1,8 @@
 # Releasing betto_onnxrt to pub.dev
 
-`betto_onnxrt` and `betto_onnxrt_ios` are released in lockstep. Both must
-carry the same version number at the point of publication, and `betto_onnxrt`
-must be published before `betto_onnxrt_ios`.
+`betto_onnxrt` and `betto_onnxrt_ios` are released in lockstep. Both must carry
+the same version number at the point of publication, and `betto_onnxrt` must be
+published before `betto_onnxrt_ios`.
 
 ---
 
@@ -13,39 +13,43 @@ Work through every item before running the publish commands.
 ### Code and tests
 
 - [ ] All v0 roadmap blockers are resolved (see `docs/roadmap/v0.md`).
-- [ ] `make` passes (full quality gate: format, analyze, license, test, coverage, doc).
+- [ ] `make` passes (full quality gate: format, analyze, license, test,
+      coverage, doc).
 - [ ] `make check_ios_version` passes — SPM exact-version pin in
-  `packages/betto_onnxrt_ios/ios/Package.swift` matches `version_onnx.json`
-  `ios.version`.
+      `packages/betto_onnxrt_ios/ios/Package.swift` matches `version_onnx.json`
+      `ios.version`.
 - [ ] `make macos_test` passes — real ORT load and inference on macOS (AOT).
 - [ ] `make linux_test` passes — real ORT inference on Linux (pure Dart, JIT).
 - [ ] `make android_test` passes — real ORT inference on Android emulator.
 - [ ] `make ios_test` passes — real ORT load and inference on iOS simulator.
-- [ ] `nm -gU integration_test_app/build/ios/iphonesimulator/Runner.app/Runner | grep OrtGetApiBase`
-  confirms `_OrtGetApiBase` is present after the iOS simulator build.
+- [ ] `nm -gU packages/betto_onnxrt/integration_test_app/build/ios/iphonesimulator/Runner.app/Runner.debug.dylib | grep OrtGetApiBase`
+      confirms `_OrtGetApiBase` is present after the iOS simulator build. (Run
+      from the repo root. In debug builds Flutter splits app code into
+      `Runner.debug.dylib`; `Runner` itself is just a stub loader.)
 - [ ] Manual smoke check on Linux Flutter Desktop and Windows Flutter Desktop
-  completed per `docs/manual_checks.md`.
-- [ ] `version_onnx.json` has real (non-zero) SHA-256 digests for every platform.
-  `make test` (which runs `test/version_manifest_test.dart`) enforces this.
+      completed per `docs/manual_checks.md`.
+- [ ] `packages/betto_onnxrt/version_onnx.json` has real (non-zero) SHA-256
+      digests for every platform. `make test` (which runs
+      `test/version_manifest_test.dart`) enforces this.
 
 ### Documentation
 
-- [ ] `make doc` succeeds and the generated docs look complete — all public types
-  in `OnnxRuntime`, `OnnxSession`, `OnnxTensor`, `OnnxElementType`,
-  `SessionOptions`, `ModelDownloader`, `ModelSpec`, `ModelFile`,
-  `ResolvedModel`, and `AllowlistProvider` have doc comments.
+- [ ] `make doc` succeeds and the generated docs look complete — all public
+      types in `OnnxRuntime`, `OnnxSession`, `OnnxTensor`, `OnnxElementType`,
+      `SessionOptions`, `ModelDownloader`, `ModelSpec`, `ModelFile`,
+      `ResolvedModel`, and `AllowlistProvider` have doc comments.
 - [ ] The package-level doc in `lib/betto_onnxrt.dart` gives a clear overview
-  suitable for the pub.dev landing page.
+      suitable for the pub.dev landing page.
 - [ ] `docs/spec/README.md` reflects the published API exactly; update it if any
-  behaviour changed since the last spec edit.
+      behaviour changed since the last spec edit.
 
 ---
 
 ## 2. Align versions
 
-Both packages must carry the same version string. `betto_onnxrt_ios` is
-tightly coupled to the ORT vtable baked into `betto_onnxrt` via `VERSION_ONNX`,
-so they are always released together.
+Both packages must carry the same version string. `betto_onnxrt_ios` is tightly
+coupled to the ORT vtable baked into `betto_onnxrt` via `VERSION_ONNX`, so they
+are always released together.
 
 1. Decide the release version (e.g. `0.1.0`).
 2. Update `version:` in `pubspec.yaml` (root — `betto_onnxrt`).
@@ -80,12 +84,12 @@ The iOS package does not yet have a `CHANGELOG.md`. Create one at
 
 ## 0.1.0
 
-Initial release. Flutter plugin shim that statically links ONNX Runtime
-v1.24.2 (via SPM) into iOS host apps for use with betto_onnxrt.
+Initial release. Flutter plugin shim that statically links ONNX Runtime v1.24.2
+(via SPM) into iOS host apps for use with betto_onnxrt.
 ```
 
-pub.dev requires a `CHANGELOG.md`; publishing without one will produce a
-warning and a lower pub score.
+pub.dev requires a `CHANGELOG.md`; publishing without one will produce a warning
+and a lower pub score.
 
 ---
 
@@ -106,11 +110,11 @@ cd ../..
 
 Common things to check in the dry-run output:
 
-- No files are accidentally excluded that should be included (check the
-  "Files to be published" list against `lib/`, `hook/`, `CHANGELOG.md`,
-  `LICENSE`, `README.md`, and `pubspec.yaml`).
-- No files with secrets or build artefacts are included. The `.dart_tool/`
-  cache directory must not appear in the list.
+- No files are accidentally excluded that should be included (check the "Files
+  to be published" list against `lib/`, `hook/`, `CHANGELOG.md`, `LICENSE`,
+  `README.md`, and `pubspec.yaml`).
+- No files with secrets or build artefacts are included. The `.dart_tool/` cache
+  directory must not appear in the list.
 - No `CHANGELOG.md` warning (pub.dev requires a changelog).
 - No `README.md` warning (pub.dev strongly recommends one).
 
@@ -151,10 +155,10 @@ together.
 
 ## 6. Post-publication
 
-- [ ] Verify `https://pub.dev/packages/betto_onnxrt` shows the new version,
-  and that the pub score (likes, pub points, popularity) looks reasonable.
-  Aim for 140+ pub points. A low score typically indicates missing doc
-  comments, a missing `README.md`, or a missing `CHANGELOG.md`.
+- [ ] Verify `https://pub.dev/packages/betto_onnxrt` shows the new version, and
+      that the pub score (likes, pub points, popularity) looks reasonable. Aim
+      for 140+ pub points. A low score typically indicates missing doc comments,
+      a missing `README.md`, or a missing `CHANGELOG.md`.
 - [ ] Verify `https://pub.dev/packages/betto_onnxrt_ios` shows the new version.
 - [ ] Tag the commit in git:
 
@@ -169,8 +173,8 @@ together.
 
 ## Re-publishing after a patch
 
-If a bug is found after publication, increment only the patch component
-(e.g. `0.1.0` → `0.1.1`). Always bump both packages together, repeat steps
-2–6 above, and add a `## 0.1.1` section to both changelogs describing the fix.
-pub.dev does not allow re-publishing the same version; a new version number is
-always required.
+If a bug is found after publication, increment only the patch component (e.g.
+`0.1.0` → `0.1.1`). Always bump both packages together, repeat steps 2–6 above,
+and add a `## 0.1.1` section to both changelogs describing the fix. pub.dev does
+not allow re-publishing the same version; a new version number is always
+required.

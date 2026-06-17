@@ -52,3 +52,4 @@ downloads/*/*
 !downloads/*/README.md
 
 .DS_Store
+packages/**/pubspec.lock

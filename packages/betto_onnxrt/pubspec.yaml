@@ -7,8 +7,6 @@ homepage: https://github.com/bettongia/onnxrt
 repository: https://github.com/bettongia/onnxrt
 issue_tracker: https://github.com/bettongia/onnxrt/issues
 
-resolution: workspace
-
 topics:
   - onnx
   - machine-learning
